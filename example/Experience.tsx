@@ -1,4 +1,4 @@
-import { Grid, KeyboardControls } from "@react-three/drei";
+import { Environment, Grid, KeyboardControls, OrbitControls, Stats, StatsGl } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
 import Ecctrl from "../src/Ecctrl";
@@ -14,20 +14,10 @@ import ShotCube from "./ShotCube";
 import { useControls } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useState } from "react";
+import Map from "./Map";
+import EcctrlMini from "../src/EcctrlMini"
 
 export default function Experience() {
-  /**
-   * Delay physics activate
-   */
-  const [pausedPhysics, setPausedPhysics] = useState(true);
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPausedPhysics(false);
-    }, 500);
-
-    return () => clearTimeout(timeout);
-  }, []);
-
   /**
    * Debug settings
    */
@@ -55,64 +45,60 @@ export default function Experience() {
 
   return (
     <>
-      <Perf position="top-left" minimal />
+      {/* <Perf position="top-left" minimal /> */}
 
-      <Grid
+      {/* <StatsGl /> */}
+
+      <Stats />
+
+      <OrbitControls />
+
+      {/* <Grid
         args={[300, 300]}
         sectionColor={"lightgray"}
         cellColor={"gray"}
         position={[0, -0.99, 0]}
         userData={{ camExcludeCollision: true }} // this won't be collide by camera ray
-      />
+      /> */}
 
       <Lights />
 
-      <Physics debug={physics} timeStep="vary" paused={pausedPhysics}>
-        {/* Keyboard preset */}
-        <KeyboardControls map={keyboardMap}>
-          {/* Character Control */}
-          <Ecctrl
-            debug
-            animated
-            followLight
-            springK={2}
-            dampingC={0.2}
-            autoBalanceSpringK={1.2}
-            autoBalanceDampingC={0.04}
-            autoBalanceSpringOnY={0.7}
-            autoBalanceDampingOnY={0.05}
-            disableControl={disableControl}
-            disableFollowCam={disableFollowCam}
-          >
-            {/* Replace your model here */}
-            <CharacterModel />
-          </Ecctrl>
-        </KeyboardControls>
+      <Environment background files="/textures/night.hdr" />
 
-        {/* Rough plan */}
-        <RoughPlane />
+      {/* Keyboard preset */}
+      <KeyboardControls map={keyboardMap}>
+        {/* Character Control */}
+        <EcctrlMini >
+          <mesh>
+            <boxGeometry args={[0.5, 1, 0.5]} />
+            <meshStandardMaterial />
+          </mesh>
+        </EcctrlMini>
+      </KeyboardControls>
 
-        {/* Slopes and stairs */}
-        <Slopes />
+      {/* Map */}
+      <Map />
 
-        {/* Small steps */}
-        <Steps />
+      {/* Rough plan */}
+      {/* <RoughPlane /> */}
 
-        {/* Rigid body objects */}
-        <RigidObjects />
+      {/* Slopes and stairs */}
+      {/* <Slopes /> */}
 
-        {/* Floating platform */}
-        <FloatingPlatform />
+      {/* Small steps */}
+      {/* <Steps /> */}
 
-        {/* Dynamic platforms */}
-        <DynamicPlatforms />
+      {/* Rigid body objects */}
+      {/* <RigidObjects /> */}
 
-        {/* Floor */}
-        <Floor />
+      {/* Floating platform */}
+      {/* <FloatingPlatform /> */}
 
-        {/* Shoting cubes */}
-        <ShotCube />
-      </Physics >
+      {/* Dynamic platforms */}
+      {/* <DynamicPlatforms /> */}
+
+      {/* Floor */}
+      {/* <Floor /> */}
     </>
   );
 }

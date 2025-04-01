@@ -1,9 +1,9 @@
 {
-  "name": "ecctrl",
-  "version": "1.0.92",
+  "name": "ecctrlmini",
+  "version": "1.0.0",
   "author": "Erdong Chen",
   "license": "MIT",
-  "description": "A floating rigibody character controller for R3F",
+  "description": "A simple character controller for R3F",
   "keywords": [
     "react",
     "three",
@@ -31,27 +31,27 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@react-three/drei": "^9.117.3",
-    "@react-three/fiber": "^8.17.10",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
-    "r3f-perf": "^7.2.3",
-    "typescript": "^5.7.2",
-    "vite": "^5.4.11"
+    "@react-three/drei": "^10.0.5",
+    "@react-three/fiber": "^9.1.1",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.4"
   },
   "dependencies": {
-    "@react-spring/three": "^9.7.5",
-    "@types/three": "^0.170.0",
-    "leva": "^0.9.35",
-    "zustand": "^5.0.1"
+    "@types/three": "^0.175.0",
+    "leva": "^0.10.0",
+    "r3f-perf": "^7.2.3",
+    "use-sync-external-store": "^1.5.0",
+    "zustand": "^5.0.3"
   },
   "peerDependencies": {
     "@react-three/drei": ">=9.0",
     "@react-three/fiber": ">=8.0",
     "@react-three/rapier": ">=1.5.0",
-    "react": ">=18",
-    "react-dom": ">=18.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "three": ">=0.170.0"
   },
   "scripts": {

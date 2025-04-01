@@ -24,7 +24,7 @@ const build = defineConfig({
     target: "es2018",
     lib: {
       formats: ["cjs", "es"],
-      entry: "src/Ecctrl.tsx",
+      entry: "src/EcctrlMini.tsx",
       fileName: "[name]",
     },
     rollupOptions: {
