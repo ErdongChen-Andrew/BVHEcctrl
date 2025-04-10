@@ -6,24 +6,72 @@ Source: https://sketchfab.com/3d-models/fantasy-game-inn-192bf30a7e28425ab385aef
 Title: Fantasy Game Inn
 */
 
-import { useGLTF } from "@react-three/drei";
+import { Clone, Helper, useGLTF, useHelper } from "@react-three/drei";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useControls } from "leva";
+import { useEffect, useRef } from "react";
+import { MeshBVHHelper } from "three-mesh-bvh";
 
 export default function Map(props) {
+  /**
+   * Debug settings
+   */
+  // const { BVHHelper, visualizeDepth } = useControls("Map Settings", {
+  //   BVHHelper: true,
+  //   visualizeDepth: {
+  //     value: 10,
+  //     min: 1,
+  //     max: 30,
+  //   },
+  // });
+
+  /**
+   * Initialize
+   */
+  const mapMeshRef = useRef(null);
+  // Load map model
   const { nodes, materials } = useGLTF("./fantasy_game_inn.glb");
+  const slopesModel = useGLTF("./SU7.glb");
+  // useEffect(()=>{
+  // console.log(mapMeshRef.current.geometry.boundsTree);
+  // nodes.TheInn_bakeInn_0.geometry.deleteAttribute('uv1');
+  // },[])
+
+  // useHelper(mapMeshRef, MeshBVHHelper, 20)
+
+  // let time = 0
+  // useFrame((_, delta)=>{
+  //   time+=delta
+  //   if(mapMeshRef.current) {
+  //     mapMeshRef.current.position.z = Math.sin(time)
+  //     mapMeshRef.current.geometry.boundsTree.refit()
+  //   }
+  // })
 
   return (
     <group {...props} dispose={null}>
       <group rotation={[-Math.PI / 2, 0, 0]} scale={0.11}>
         <mesh
+          ref={mapMeshRef}
           castShadow
           receiveShadow
           geometry={nodes.TheInn_bakeInn_0.geometry}
         >
           <meshStandardMaterial map={materials.bakeInn.map} />
+          {/* <Helper type={MeshBVHHelper} args={[20]} /> */}
         </mesh>
       </group>
+
+      <Clone object={slopesModel.scene} position={[2,0,0]}/>
+
+      <mesh position={[-1, -1, 0]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial />
+      </mesh>
     </group>
   );
 }
 
 useGLTF.preload("./fantasy_game_inn.glb");
+useGLTF.preload("./SU7.glb");
+

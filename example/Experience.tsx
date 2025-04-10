@@ -1,4 +1,5 @@
-import { Environment, Grid, KeyboardControls, OrbitControls, Stats, StatsGl } from "@react-three/drei";
+import * as THREE from "three"
+import { Environment, Grid, KeyboardControls, OrbitControls, Stats, StatsGl, TransformControls } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
 import Ecctrl from "../src/Ecctrl";
@@ -7,25 +8,25 @@ import Lights from "./Lights";
 import Steps from "./Steps";
 import Slopes from "./Slopes";
 import RoughPlane from "./RoughPlane";
-import RigidObjects from "./RigidObjects";
-import FloatingPlatform from "./FloatingPlatform";
-import DynamicPlatforms from "./DynamicPlatforms";
-import ShotCube from "./ShotCube";
 import { useControls } from "leva";
 import CharacterModel from "./CharacterModel";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
-import EcctrlMini from "../src/EcctrlMini"
+import EcctrlMini, { characterStatus } from "../src/EcctrlMini"
+import StaticCollider from "../src/StaticCollider"
+import { useFrame } from "@react-three/fiber";
 
 export default function Experience() {
   /**
    * Debug settings
    */
-  const { physics, disableControl, disableFollowCam } = useControls("World Settings", {
-    physics: false,
-    disableControl: false,
-    disableFollowCam: false,
-  });
+  const ecctrlRef = useRef<THREE.Group | null>(null)
+  const EcctrlMiniDebugSettings = useControls("EcctrlMini Debug", {
+    EcctrlMiniDebug: true,
+  })
+  const MapDebugSettings = useControls("Map Debug", {
+    MapDebug: true,
+  })
 
   /**
    * Keyboard control preset
@@ -51,7 +52,7 @@ export default function Experience() {
 
       <Stats />
 
-      <OrbitControls />
+      <OrbitControls makeDefault />
 
       {/* <Grid
         args={[300, 300]}
@@ -63,39 +64,45 @@ export default function Experience() {
 
       <Lights />
 
-      <Environment background files="/textures/night.hdr" />
+      <Environment background files="textures/night.hdr" />
+
+      {/* Map */}
+      <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <Map />
+      </StaticCollider>
 
       {/* Keyboard preset */}
       <KeyboardControls map={keyboardMap}>
         {/* Character Control */}
-        <EcctrlMini >
-          <mesh>
-            <boxGeometry args={[0.5, 1, 0.5]} />
-            <meshStandardMaterial />
-          </mesh>
+        <EcctrlMini
+          ref={ecctrlRef}
+          debug={EcctrlMiniDebugSettings.EcctrlMiniDebug}
+        >
+          {/* Character Model */}
+          {/* <group>
+              <mesh>
+                <capsuleGeometry args={[0.3, 0.5, 6, 16]} />
+                <meshStandardMaterial />
+              </mesh>
+              <mesh position={[0, 0.2, 0.3]}>
+                <boxGeometry args={[0.4, 0.2, 0.2]} />
+                <meshStandardMaterial color={"gray"} />
+              </mesh>
+            </group> */}
         </EcctrlMini>
       </KeyboardControls>
 
-      {/* Map */}
-      <Map />
+      <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <RoughPlane />
+      </StaticCollider>
 
-      {/* Rough plan */}
-      {/* <RoughPlane /> */}
+      <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <Slopes />
+      </StaticCollider>
 
-      {/* Slopes and stairs */}
-      {/* <Slopes /> */}
 
       {/* Small steps */}
       {/* <Steps /> */}
-
-      {/* Rigid body objects */}
-      {/* <RigidObjects /> */}
-
-      {/* Floating platform */}
-      {/* <FloatingPlatform /> */}
-
-      {/* Dynamic platforms */}
-      {/* <DynamicPlatforms /> */}
 
       {/* Floor */}
       {/* <Floor /> */}
