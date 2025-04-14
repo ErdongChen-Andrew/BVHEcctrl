@@ -1,12 +1,8 @@
-import { RigidBody } from "@react-three/rapier";
-
-export default function Floor() {
+export default function Floor(props: any) {
   return (
-    <RigidBody type="fixed">
-      <mesh receiveShadow position={[0, -3.5, 0]}>
+      <mesh receiveShadow {...props}>
         <boxGeometry args={[300, 5, 300]} />
-        <meshStandardMaterial color="lightblue" />
+        <meshStandardMaterial color="lightgray" />
       </mesh>
-    </RigidBody>
   );
 }

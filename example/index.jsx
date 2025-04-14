@@ -20,11 +20,16 @@ root.render(
         far: 1000,
       }}
       gl={async (props) => {
-        extend(THREE)
-        const renderer = new THREE.WebGPURenderer(props)
+        extend(THREE);
+        const renderer = new THREE.WebGPURenderer(props);
         await renderer.init();
         return renderer;
       }}
+      // onPointerDown={(e) => {
+      //   if (e.pointerType === "mouse") {
+      //     e.target.requestPointerLock();
+      //   }
+      // }}
     >
       <Suspense fallback={null}>
         <Bvh firstHitOnly>

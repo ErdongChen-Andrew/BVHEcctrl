@@ -1,5 +1,5 @@
 import * as THREE from "three"
-import { Environment, Grid, KeyboardControls, OrbitControls, Stats, StatsGl, TransformControls } from "@react-three/drei";
+import { Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
 import Ecctrl from "../src/Ecctrl";
@@ -15,11 +15,15 @@ import Map from "./Map";
 import EcctrlMini, { characterStatus } from "../src/EcctrlMini"
 import StaticCollider from "../src/StaticCollider"
 import { useFrame } from "@react-three/fiber";
+import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
 
 export default function Experience() {
   /**
    * Debug settings
    */
+  const camControlRef = useRef<ThreeOrbitControls | null>(null)
+  // const camControlRef = useRef<ThreePointerLockControls | null>(null)
+
   const ecctrlRef = useRef<THREE.Group | null>(null)
   const EcctrlMiniDebugSettings = useControls("EcctrlMini Debug", {
     EcctrlMiniDebug: true,
@@ -27,6 +31,18 @@ export default function Experience() {
   const MapDebugSettings = useControls("Map Debug", {
     MapDebug: true,
   })
+
+  /**
+   * Delay physics activate
+   */
+  const [pausedPhysics, setPausedPhysics] = useState(true);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPausedPhysics(false);
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, []);
 
   /**
    * Keyboard control preset
@@ -44,6 +60,15 @@ export default function Experience() {
     { name: "action4", keys: ["KeyF"] },
   ];
 
+  useFrame((state) => {
+    // For orbit control to follow character
+    if (camControlRef.current && ecctrlRef.current) {
+      state.camera.position.sub(camControlRef.current.target)
+      camControlRef.current.target.copy(ecctrlRef.current.position)
+      state.camera.position.add(ecctrlRef.current.position)
+    }
+  })
+
   return (
     <>
       {/* <Perf position="top-left" minimal /> */}
@@ -52,7 +77,13 @@ export default function Experience() {
 
       <Stats />
 
-      <OrbitControls makeDefault />
+      <OrbitControls
+        ref={camControlRef}
+        dampingFactor={0.1}
+        enablePan={false}
+        makeDefault
+      />
+      {/* <PointerLockControls ref={camControlRef}/> */}
 
       {/* <Grid
         args={[300, 300]}
@@ -64,12 +95,7 @@ export default function Experience() {
 
       <Lights />
 
-      <Environment background files="textures/night.hdr" />
-
-      {/* Map */}
-      <StaticCollider debug={MapDebugSettings.MapDebug}>
-        <Map />
-      </StaticCollider>
+      <Environment background blur={0.5} files="textures/night.hdr" />
 
       {/* Keyboard preset */}
       <KeyboardControls map={keyboardMap}>
@@ -77,6 +103,8 @@ export default function Experience() {
         <EcctrlMini
           ref={ecctrlRef}
           debug={EcctrlMiniDebugSettings.EcctrlMiniDebug}
+          enableGravity={!pausedPhysics}
+          position={[0, 3, 0]}
         >
           {/* Character Model */}
           {/* <group>
@@ -92,20 +120,22 @@ export default function Experience() {
         </EcctrlMini>
       </KeyboardControls>
 
+      {/* Map */}
+      <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <Map />
+      </StaticCollider>
+
       <StaticCollider debug={MapDebugSettings.MapDebug}>
         <RoughPlane />
       </StaticCollider>
 
+      {/* <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <Slopes position={[0, -4, 0]} />
+      </StaticCollider> */}
+
       <StaticCollider debug={MapDebugSettings.MapDebug}>
-        <Slopes />
+        <Floor position={[0, -6.5, 0]} />
       </StaticCollider>
-
-
-      {/* Small steps */}
-      {/* <Steps /> */}
-
-      {/* Floor */}
-      {/* <Floor /> */}
     </>
   );
 }

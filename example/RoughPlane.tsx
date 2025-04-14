@@ -19,6 +19,6 @@ export default function RoughPlane() {
   }, []);
 
   return (
-    <primitive position={[-13,-2,0]} object={roughPlane.scene} />
+    <primitive position={[-11.2, -1.5, 0]} object={roughPlane.scene} />
   );
 }

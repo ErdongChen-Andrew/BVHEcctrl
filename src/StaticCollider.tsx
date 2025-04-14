@@ -36,16 +36,19 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
 
         colliderRef.current.updateMatrixWorld(true);
         const staticGenerator = new StaticGeometryGenerator(colliderRef.current);
-        staticGenerator.attributes = ['position'];
+        staticGenerator.attributes = ['position', 'normal'];
         const mergedGeometry = staticGenerator.generate();
         mergedGeometry.boundsTree = new MeshBVH(mergedGeometry);
         mergedMesh.current = new THREE.Mesh(mergedGeometry)
 
         // colliderRef.current.userData.restitution = restitution
         // colliderRef.current.userData.mergedMesh = mergedMesh.current
+        mergedMesh.current.userData.restitution = restitution
+        mergedMesh.current.userData.friction = friction
+
 
         // useEcctrlStore.getState().setStaticBoundsTree(mergedGeometry.boundsTree)
-        useEcctrlStore.getState().setStaticMapPropsArray({ restitution, friction, boundsTree: mergedGeometry.boundsTree })
+        useEcctrlStore.getState().setStaticMeshesArray(mergedMesh.current)
 
         // Debug helper setup
         bvhHelper.current = new MeshBVHHelper(mergedMesh.current, 20)
@@ -76,7 +79,7 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
         const boundsTree = geometry?.boundsTree;
         if (!boundsTree) return;
 
-        // Getting all useful info from globle store
+        // Getting all useful info from global store
         const ecctrlStore = useEcctrlStore.getState();
         const characterGroupRef = ecctrlStore.characterGroupRef;
         const segment = ecctrlStore.characterSegment;

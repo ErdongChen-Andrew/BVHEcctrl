@@ -21,12 +21,6 @@ type contactPointInfo = {
   contactNormal: THREE.Vector3;
 };
 
-export type staticProps = {
-  restitution: number;
-  friction: number;
-  boundsTree: MeshBVH;
-};
-
 type State = {
   // Character collider infomation
   characterCollider: CharacterCollider;
@@ -45,8 +39,8 @@ type State = {
   setContactPointInfo: (contactInfo: Partial<contactPointInfo>) => void;
   resetContactPointInfo: () => void;
   // Environment map props
-  staticMapPropsArray: staticProps[];
-  setStaticMapPropsArray: (props: staticProps) => void;
+  staticMeshesArray: THREE.Mesh[];
+  setStaticMeshesArray: (mergedMesh: THREE.Mesh) => void;
   // Environment bounds tree infomation
   staticBoundsTree: MeshBVH | null;
   setStaticBoundsTree: (boundsTree: MeshBVH) => void;
@@ -128,9 +122,9 @@ export const useEcctrlStore = /* @__PURE__ */ create(
       /**
        *  Set/Update static collider props
        */
-      staticMapPropsArray: [],
-      setStaticMapPropsArray: (props: staticProps) =>
-        set((state) => ({ staticMapPropsArray: [...state.staticMapPropsArray, props] })),
+      staticMeshesArray: [],
+      setStaticMeshesArray: (mergedMesh: THREE.Mesh) =>
+        set((state) => ({ staticMeshesArray: [...state.staticMeshesArray, mergedMesh] })),
 
       /**
        *  Set/Update static collider boundsTree
