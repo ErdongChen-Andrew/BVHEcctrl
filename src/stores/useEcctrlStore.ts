@@ -22,6 +22,13 @@ type contactPointInfo = {
 };
 
 type State = {
+  removeStaticMesh(
+    current: THREE.Mesh<
+      THREE.BufferGeometry<THREE.NormalBufferAttributes>,
+      THREE.Material | THREE.Material[],
+      THREE.Object3DEventMap
+    >
+  ): unknown;
   // Character collider infomation
   characterCollider: CharacterCollider;
   setCharacterCollider: (props: CharacterCollider) => void;
@@ -41,6 +48,7 @@ type State = {
   // Environment map props
   staticMeshesArray: THREE.Mesh[];
   setStaticMeshesArray: (mergedMesh: THREE.Mesh) => void;
+  removeStaticMeshesArray: (mergedMesh: THREE.Mesh) => void;
   // Environment bounds tree infomation
   staticBoundsTree: MeshBVH | null;
   setStaticBoundsTree: (boundsTree: MeshBVH) => void;
@@ -124,7 +132,20 @@ export const useEcctrlStore = /* @__PURE__ */ create(
        */
       staticMeshesArray: [],
       setStaticMeshesArray: (mergedMesh: THREE.Mesh) =>
-        set((state) => ({ staticMeshesArray: [...state.staticMeshesArray, mergedMesh] })),
+        set((state) => {
+          if (!state.staticMeshesArray.includes(mergedMesh)) {
+            return {
+              staticMeshesArray: [...state.staticMeshesArray, mergedMesh],
+            };
+          }
+          return state;
+        }),
+      removeStaticMesh: (meshToRemove: THREE.Mesh) =>
+        set((state) => ({
+          staticMeshesArray: state.staticMeshesArray.filter(
+            (mesh) => mesh !== meshToRemove
+          ),
+        })),
 
       /**
        *  Set/Update static collider boundsTree

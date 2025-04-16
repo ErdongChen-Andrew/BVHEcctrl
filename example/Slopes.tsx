@@ -1,4 +1,5 @@
-import { useGLTF, Text } from "@react-three/drei";
+import { useGLTF, Text, Clone } from "@react-three/drei";
+import React from "react";
 import { useEffect } from "react";
 import * as THREE from "three";
 
@@ -20,7 +21,7 @@ export default function Slopes(props: any) {
 
   return (
     <group {...props}>
-      <primitive object={slopes.scene} />
+      <Clone object={slopes.scene} />
     </group>
   );
 }

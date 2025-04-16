@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useMemo, useState, type ReactNode, forwardRef
 import { useFrame, useThree } from "@react-three/fiber";
 import { Helper, PivotControls, TransformControls, useKeyboardControls } from "@react-three/drei";
 import { useEcctrlStore } from "./stores/useEcctrlStore";
-import { lerp } from "three/src/math/MathUtils";
+import { clamp, lerp } from "three/src/math/MathUtils";
 
 /**
  * Physics formulas:
@@ -25,31 +25,31 @@ import { lerp } from "three/src/math/MathUtils";
  * 5. F(damping) = -c * v
  */
 
-const getAzimuthalAngle = (camera: THREE.Camera, upAxis: THREE.Vector3): number => {
-    const viewDir = new THREE.Vector3();
-    const projDir = new THREE.Vector3();
-    const refDir = new THREE.Vector3(); // reference direction on the plane
+// const getAzimuthalAngle = (camera: THREE.Camera, upAxis: THREE.Vector3): number => {
+//     const viewDir = new THREE.Vector3();
+//     const projDir = new THREE.Vector3();
+//     const refDir = new THREE.Vector3(); // reference direction on the plane
 
-    // Step 1: Calculate camera view direction
-    camera.getWorldDirection(viewDir); // points FROM camera TO target
+//     // Step 1: Calculate camera view direction
+//     camera.getWorldDirection(viewDir); // points FROM camera TO target
 
-    // Step 2: Project view direction onto plane orthogonal to upAxis
-    projDir.copy(viewDir).projectOnPlane(upAxis).normalize();
+//     // Step 2: Project view direction onto plane orthogonal to upAxis
+//     projDir.copy(viewDir).projectOnPlane(upAxis).normalize();
 
-    // Step 3: Pick a reference direction on the plane (e.g., X axis projected onto the same plane)
-    refDir.set(0, 0, -1).projectOnPlane(upAxis).normalize();
+//     // Step 3: Pick a reference direction on the plane (e.g., X axis projected onto the same plane)
+//     refDir.set(0, 0, -1).projectOnPlane(upAxis).normalize();
 
-    // Step 4: Compute angle between refDir and projected viewDir
-    let angle = Math.acos(THREE.MathUtils.clamp(refDir.dot(projDir), -1, 1)); // in radians
+//     // Step 4: Compute angle between refDir and projected viewDir
+//     let angle = Math.acos(THREE.MathUtils.clamp(refDir.dot(projDir), -1, 1)); // in radians
 
-    // Step 5: Determine sign using cross product
-    const cross = new THREE.Vector3().crossVectors(refDir, projDir);
-    if (cross.dot(upAxis) < 0) {
-        angle = -angle;
-    }
+//     // Step 5: Determine sign using cross product
+//     const cross = new THREE.Vector3().crossVectors(refDir, projDir);
+//     if (cross.dot(upAxis) < 0) {
+//         angle = -angle;
+//     }
 
-    return angle; // in radians
-}
+//     return angle; // in radians
+// }
 
 export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> {
     children?: ReactNode;
@@ -61,6 +61,9 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     maxWalkSpeed?: number;
     maxRunSpeed?: number;
     acceleration?: number;
+    deceleration?: number;
+    counterVelFactor?: number;
+    airDragFactor?: number;
     jumpVel?: number;
     maxSlope?: number;
     floatHeight?: number;
@@ -70,6 +73,9 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     floatDampingC?: number;
     collisionCheckIteration?: number;
     collisionPushBackStrength?: number;
+    collisionPushBackVelocity?: number;
+    collisionPushBackThreshold?: number;
+    collisionStairThreshold?: number;
 };
 
 const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
@@ -84,52 +90,46 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
     // Controller props
     maxWalkSpeed = 3,
     maxRunSpeed = 5,
-    acceleration = 10,
+    acceleration = 26,
+    deceleration = 10,
+    counterVelFactor = 1.5,
+    airDragFactor = 0.7,
     jumpVel = 5,
     maxSlope = 1,
-    floatHeight = 0.17,
-    floatPullBackHeight = 0.2,
-    floatSensorRadius = 0.13,
-    floatSpringK = 180,
-    floatDampingC = 10,
+    floatHeight = 0.2,
+    floatPullBackHeight = 0.25,
+    floatSensorRadius = 0.12,
+    floatSpringK = 220,
+    floatDampingC = 12,
     // Collision check props
     collisionCheckIteration = 3,
     collisionPushBackStrength = 200,
+    collisionPushBackVelocity = 3,
+    collisionPushBackThreshold = 0.05,
+    collisionStairThreshold = 0.8,
     // Other props
     ...props
 }, ref) => {
     /**
      * Initialize setups
      */
+    const { camera } = useThree()
     const capsuleRadius = useMemo(() => colliderCapsuleArgs[0], [])
     const capsuleLength = useMemo(() => colliderCapsuleArgs[1], [])
     // Ref for meshes
     const characterGroupRef = (ref as RefObject<THREE.Group>) ?? useRef<THREE.Group | null>(null);
     const characterColliderRef = useRef<THREE.Mesh | null>(null);
     const characterModelRef = useRef<THREE.Group | null>(null);
-    // Mutable character collision objects
-    const characterBbox = useRef<THREE.Box3>(new THREE.Box3())
-    const characterBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
-    const characterBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
-    const characterSegment = useRef<THREE.Line3>(new THREE.Line3())
-    // Mutable float sensor objects
-    const floatSensorBbox = useRef(new THREE.Box3())
-    const floatSensorBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
-    const floatSensorBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
-    const floatSensorBboxExpendPoint = useRef<THREE.Vector3>(new THREE.Vector3())
-    const floatSensorSegment = useRef(new THREE.Line3())
-    // const floatRaycaster = useRef<THREE.Raycaster>(new THREE.Raycaster())
-    // floatRaycaster.current.far = floatHeight + floatForgiveness
-    // Debug indicators initialize
+    // Debug indicators meshes
     const debugBbox = useRef<THREE.Mesh | null>(null)
     const debugLineStart = useRef<THREE.Mesh | null>(null)
     const debugLineEnd = useRef<THREE.Mesh | null>(null)
     const debugRaySensorBbox = useRef<THREE.Mesh | null>(null)
     const debugRaySensorStart = useRef<THREE.Mesh | null>(null)
     const debugRaySensorEnd = useRef<THREE.Mesh | null>(null)
-    // const debugRayDesiredPoint = useRef<THREE.Mesh | null>(null)
     const contactPointRef = useRef<THREE.Mesh | null>(null)
     const standPointRef = useRef<THREE.Mesh | null>(null)
+    const moveDirRef = useRef<THREE.Mesh | null>(null)
 
     /**
      * Check if inside keyboardcontrols
@@ -177,9 +177,23 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
     const currentLinVel = useRef<THREE.Vector3>(new THREE.Vector3())
 
     /**
+     * Follow camera prest
+     */
+    const camViewDir = useRef<THREE.Vector3>(new THREE.Vector3())
+    const camProjDir = useRef<THREE.Vector3>(new THREE.Vector3())
+    const camRefDir = useRef<THREE.Vector3>(new THREE.Vector3())
+    const crossVec = useRef<THREE.Vector3>(new THREE.Vector3())
+    const constRefDir = useMemo<THREE.Vector3>(() => {
+        camera.updateMatrixWorld(true);
+        return camera.getWorldDirection(new THREE.Vector3())
+    }, [])
+
+    /**
      * Controls preset
      */
     const inputDir = useRef<THREE.Vector3>(new THREE.Vector3())
+    const deltaLinVel = useRef<THREE.Vector3>(new THREE.Vector3())
+    const counterVel = useRef<THREE.Vector3>(new THREE.Vector3())
     const wantToMoveVel = useRef<THREE.Vector3>(new THREE.Vector3())
     const isOnGround = useRef<boolean>(false)
     const characterXAxis = useMemo(() => new THREE.Vector3(1, 0, 0), [])
@@ -194,21 +208,42 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
     const triContactPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const capsuleContactPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const absorbVel = useRef<THREE.Vector3>(new THREE.Vector3())
-    const pushBackAcc = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const pushBackAcc = useRef<THREE.Vector3>(new THREE.Vector3())
+    const pushBackVel = useRef<THREE.Vector3>(new THREE.Vector3())
+    // Mutable character collision objects
+    const characterBbox = useRef<THREE.Box3>(new THREE.Box3())
+    const characterBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
+    const characterBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
+    const characterSegment = useRef<THREE.Line3>(new THREE.Line3())
 
     /**
      * Floating sensor preset
      */
+    const currSlopeAngle = useRef<number>(0)
+    const isOverMaxSlope = useRef<boolean>(false)
+    const isOverSteepSlope = useRef<boolean>(false)
     const localMinDistance = useRef<number>(Infinity)
     const localClosestPoint = useRef<THREE.Vector3>(new THREE.Vector3())
+    const localHitNormal = useRef<THREE.Vector3>(new THREE.Vector3())
     const globalMinDistance = useRef<number>(Infinity)
     const globalClosestPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const triHitPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const segHitPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatHitVec = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatHitNormal = useRef<THREE.Vector3>(new THREE.Vector3())
+    const floatHitMesh = useRef<THREE.Mesh | null>(null)
+    const groundFriction = useRef<number>(0.8)
     const closestPointHorizontalDis = useRef<THREE.Vector3>(new THREE.Vector3())
     const closestPointVerticalDis = useRef<THREE.Vector3>(new THREE.Vector3())
+    const steepSlopeThreshold = useMemo(() => Math.atan((capsuleRadius + floatHeight + floatPullBackHeight + floatSensorRadius) / (capsuleRadius - floatSensorRadius)), [])
+    // Mutable float sensor objects
+    const floatSensorBbox = useRef(new THREE.Box3())
+    const floatSensorBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
+    const floatSensorBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
+    const floatSensorBboxExpendPoint = useRef<THREE.Vector3>(new THREE.Vector3())
+    const floatSensorSegment = useRef(new THREE.Line3())
+    // const floatRaycaster = useRef<THREE.Raycaster>(new THREE.Raycaster())
+    // floatRaycaster.current.far = floatHeight + floatForgiveness
 
     /**
      * Gravity funtion
@@ -218,11 +253,17 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
     }, [])
 
     /**
-     * Drag force funtion
+     * Get camera azimuthal angle funtion
      */
-    // const applyDragForce = useCallback((onGround: boolean, jump: boolean, friction: number) => {
-    //     currentLinVel.current.addScaledVector(gravityDir, gravity * delta)
-    // }, [])
+    const getAzimuthalAngle = useCallback((camera: THREE.Camera, upAxis: THREE.Vector3): number => {
+        camera.getWorldDirection(camViewDir.current);
+        camProjDir.current.copy(camViewDir.current).projectOnPlane(upAxis).normalize();
+        camRefDir.current.copy(constRefDir).projectOnPlane(upAxis).normalize();
+        let angle = Math.acos(clamp(camRefDir.current.dot(camProjDir.current), -1, 1));
+        crossVec.current.crossVectors(camRefDir.current, camProjDir.current);
+        if (crossVec.current.dot(upAxis) < 0) angle = -angle;
+        return angle;
+    }, [])
 
     /**
      * Get moving direction function
@@ -234,7 +275,7 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
         leftward: boolean,
         rightward: boolean,
         upAxis: THREE.Vector3,
-        angle: number)
+        camAngle: number)
         : THREE.Vector3 => {
         inputDir.current.set(0, 0, 0)
         if (forward) inputDir.current.z = -1
@@ -243,7 +284,10 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
         if (rightward) inputDir.current.x = 1
 
         // Rotate inputDir according to camera azimuthal angle
-        inputDir.current.applyAxisAngle(upAxis, angle);
+        inputDir.current.applyAxisAngle(upAxis, camAngle);
+
+        // Apply slope up/down angle to inputDir if slope is less then max angle
+        if (!isOverMaxSlope.current) inputDir.current.projectOnPlane(floatHitNormal.current)
 
         return inputDir.current.normalize()
     }, [])
@@ -252,13 +296,33 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
      * Handle character movement function
      */
     const handleCharacterMovement = useCallback((direction: THREE.Vector3, runState: boolean, delta: number) => {
+        // Get and clamp groundFriction to a reasonable number
+        const friction = Math.max(0.05, Math.min(groundFriction.current, 1));
+
+        // Check if there is a user input to move character
         if (direction.lengthSq() > 0) {
-            wantToMoveVel.current.copy(direction).multiplyScalar(runState ? maxRunSpeed : maxWalkSpeed);
-            currentLinVel.current.x = lerp(currentLinVel.current.x, wantToMoveVel.current.x, acceleration * delta)
-            currentLinVel.current.z = lerp(currentLinVel.current.z, wantToMoveVel.current.z, acceleration * delta)
-        } else {
-            currentLinVel.current.x -= currentLinVel.current.x * 5 * delta
-            currentLinVel.current.z -= currentLinVel.current.z * 5 * delta
+            // Find character desired target velocity and direction
+            wantToMoveVel.current.copy(direction).multiplyScalar(runState ? maxRunSpeed : maxWalkSpeed)
+
+            // If currently moving in oppsite direction then wantToMoveVel
+            // Consider adding counter velocity to wantToMoveVel to improve control feels
+            const dot = characterStatus.movingDir.dot(direction)
+            if (dot < -0.5) {
+                counterVel.current.copy(currentLinVel.current).multiplyScalar(dot * counterVelFactor * friction).projectOnPlane(floatHitNormal.current)
+                counterVel.current.clampLength(0, maxRunSpeed * counterVelFactor) // prevent overshoot
+                wantToMoveVel.current.add(counterVel.current)
+            }
+
+            // According to this formula: Δv = a * Δt
+            // Find Δv which increase currentLinVel in every frame, until reach wantToMoveVel
+            deltaLinVel.current.subVectors(wantToMoveVel.current, currentLinVel.current)
+            deltaLinVel.current.clampLength(0, acceleration * friction * delta * (isOnGround.current ? 1 : airDragFactor))
+
+            // Add Δv to currentLinVel
+            isOnGround.current ? currentLinVel.current.add(deltaLinVel.current) : currentLinVel.current.add(deltaLinVel.current.projectOnPlane(upAxis))
+        } else if (isOnGround.current) {
+            // If no user inputs & is on ground, apply friction drag to currentLinVel
+            currentLinVel.current.multiplyScalar(1 - deceleration * friction * delta);
         }
     }, [])
 
@@ -342,13 +406,13 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
                              * If character still collide with something after velocity absorb
                              * Apply push-back force based on contact depth
                              */
-                            // if (contactDepth.current > 0.05) {
+                            // if (contactDepth.current > collisionPushBackThreshold) {
                             // pushBackAcc.current.copy(contactNormal.current).multiplyScalar(collisionPushBackStrength * contactDepth.current);
                             // currentLinVel.current.addScaledVector(pushBackAcc.current, delta);
                             // }
-                            if (contactDepth.current > 0.05) {
-                                const pushBackVel = contactNormal.current.clone().multiplyScalar(3 * contactDepth.current);
-                                currentLinVel.current.add(pushBackVel);
+                            if (contactDepth.current > collisionPushBackThreshold) {
+                                pushBackVel.current.copy(contactNormal.current).multiplyScalar(collisionPushBackVelocity * contactDepth.current);
+                                currentLinVel.current.add(pushBackVel.current);
                             }
                         }
                     }
@@ -373,11 +437,13 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
             if (!mesh.geometry.boundsTree) return;
 
             // Reset float sensor hit point info
+            currSlopeAngle.current = 0;
             localMinDistance.current = Infinity;
             localClosestPoint.current.set(0, 0, 0);
             triHitPoint.current.set(0, 0, 0)
             segHitPoint.current.set(0, 0, 0)
             floatHitVec.current.set(0, 0, 0)
+            localHitNormal.current.set(0, 0, 0)
 
             // Check if floating ray hits any map faces, 
             // and find the closest point to sensor start point
@@ -396,7 +462,7 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
                         if (verticalDistance < localMinDistance.current) {
                             localMinDistance.current = verticalDistance;
                             localClosestPoint.current.copy(triHitPoint.current);
-                            tri.getNormal(floatHitNormal.current);
+                            tri.getNormal(localHitNormal.current);
                         }
                     }
                 }
@@ -411,6 +477,12 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
             if (localMinDistance.current < globalMinDistance.current) {
                 globalMinDistance.current = localMinDistance.current;
                 globalClosestPoint.current.copy(localClosestPoint.current);
+                floatHitNormal.current.copy(localHitNormal.current);
+                currSlopeAngle.current = floatHitNormal.current.angleTo(upAxis)
+                isOverMaxSlope.current = currSlopeAngle.current > maxSlope
+                isOverSteepSlope.current = currSlopeAngle.current > steepSlopeThreshold
+                floatHitMesh.current = mesh
+                groundFriction.current = mesh.userData.friction
             }
 
             // If globalMinDistance.current is valid, sensor hits something. 
@@ -427,8 +499,8 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
                 if (!jump) currentLinVel.current.addScaledVector(upAxis, floatForce * delta / mass)
 
                 // Character is on ground if not on a steep slope
-                // Spacial case: if the slope is too steep (stair verticle faces), treat it as on ground (for now)
-                if (floatHitNormal.current.angleTo(upAxis) < maxSlope || floatHitNormal.current.angleTo(upAxis) > 1.5) {
+                // Spacial case: if the slope is too steep (stair verticle faces), treat it as on ground (for now)                
+                if (!isOverMaxSlope.current || isOverSteepSlope.current) {
                     isOnGround.current = true
                 } else {
                     isOnGround.current = false
@@ -446,6 +518,7 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
         characterGroupRef.current.getWorldPosition(characterStatus.position)
         characterGroupRef.current.getWorldQuaternion(characterStatus.quaternion)
         characterStatus.linvel.copy(currentLinVel.current)
+        characterStatus.movingDir.copy(currentLinVel.current).normalize()
         characterStatus.isOnGround = isOnGround.current
     }, [])
 
@@ -483,6 +556,10 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
 
         // Update stand point to follow globalClosestPoint
         standPointRef.current?.position.copy(globalClosestPoint.current);
+
+        // Update moving direction indicator to follow character pos and moving dir
+        moveDirRef.current?.position.copy(characterGroupRef.current.position)
+        moveDirRef.current?.lookAt(moveDirRef.current?.position.clone().add(inputDir.current))
     }, [])
 
     useFrame((state, delta) => {
@@ -495,7 +572,7 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
         /**
          * Get camera azimuthal angle
          */
-        const cameAngle = getAzimuthalAngle(state.camera, upAxis);
+        const camAngle = getAzimuthalAngle(state.camera, upAxis);
 
         /**
          * Getting all the useful keys from useKeyboardControls
@@ -505,7 +582,7 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
         /**
          * Handle character movement input
          */
-        const movingDirection = getMovingDirection(forward, backward, leftward, rightward, upAxis, cameAngle)
+        const movingDirection = getMovingDirection(forward, backward, leftward, rightward, upAxis, camAngle)
         // Apply user input to character moving velocity
         handleCharacterMovement(movingDirection, run, delta)
         // Character jump input
@@ -610,6 +687,11 @@ const EcctrlMini = forwardRef<THREE.Group, EcctrlProps>(({
                         <octahedronGeometry args={[0.1, 0]} />
                         <meshBasicMaterial color={"red"} />
                     </mesh>
+                    {/* Character input moving direction debugger */}
+                    <mesh ref={moveDirRef} scale={[1, 1, 5]}>
+                        <octahedronGeometry args={[0.1, 0]} />
+                        <meshNormalMaterial />
+                    </mesh>
                 </group>
             }
         </Suspense>
@@ -622,5 +704,6 @@ export const characterStatus = {
     position: new THREE.Vector3(),
     linvel: new THREE.Vector3(),
     quaternion: new THREE.Quaternion(),
+    movingDir: new THREE.Vector3(),
     isOnGround: false,
 };

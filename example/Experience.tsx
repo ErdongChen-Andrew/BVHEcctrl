@@ -5,7 +5,6 @@ import { Physics } from "@react-three/rapier";
 import Ecctrl from "../src/Ecctrl";
 import Floor from "./Floor";
 import Lights from "./Lights";
-import Steps from "./Steps";
 import Slopes from "./Slopes";
 import RoughPlane from "./RoughPlane";
 import { useControls } from "leva";
@@ -14,7 +13,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
 import EcctrlMini, { characterStatus } from "../src/EcctrlMini"
 import StaticCollider from "../src/StaticCollider"
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
 
 export default function Experience() {
@@ -67,7 +66,18 @@ export default function Experience() {
       camControlRef.current.target.copy(ecctrlRef.current.position)
       state.camera.position.add(ecctrlRef.current.position)
     }
+
+    // if (camControlRef.current && ecctrlRef.current) {
+    //   state.camera.position.copy(ecctrlRef.current.position)
+    // }
   })
+
+  const [show, setShow] = useState(true)
+  // useEffect(() => {
+  //   setInterval(() => {
+  //     setShow(prev => !prev)
+  //   }, 5000)
+  // }, [])
 
   return (
     <>
@@ -83,7 +93,7 @@ export default function Experience() {
         enablePan={false}
         makeDefault
       />
-      {/* <PointerLockControls ref={camControlRef}/> */}
+      {/* <PointerLockControls ref={camControlRef} makeDefault/> */}
 
       {/* <Grid
         args={[300, 300]}
@@ -93,9 +103,9 @@ export default function Experience() {
         userData={{ camExcludeCollision: true }} // this won't be collide by camera ray
       /> */}
 
-      <Lights />
+      {/* <Lights /> */}
 
-      <Environment background blur={0.5} files="textures/night.hdr" />
+      <Environment background blur={0.5} files="textures/sky.hdr" />
 
       {/* Keyboard preset */}
       <KeyboardControls map={keyboardMap}>
@@ -104,7 +114,7 @@ export default function Experience() {
           ref={ecctrlRef}
           debug={EcctrlMiniDebugSettings.EcctrlMiniDebug}
           enableGravity={!pausedPhysics}
-          position={[0, 3, 0]}
+          position={[-8, 3, 0]}
         >
           {/* Character Model */}
           {/* <group>
@@ -121,7 +131,11 @@ export default function Experience() {
       </KeyboardControls>
 
       {/* Map */}
-      <StaticCollider debug={MapDebugSettings.MapDebug}>
+      {/* {show && <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <Map />
+      </StaticCollider>} */}
+
+      <StaticCollider debug={MapDebugSettings.MapDebug} visible={show}>
         <Map />
       </StaticCollider>
 
@@ -129,13 +143,15 @@ export default function Experience() {
         <RoughPlane />
       </StaticCollider>
 
-      {/* <StaticCollider debug={MapDebugSettings.MapDebug}>
-        <Slopes position={[0, -4, 0]} />
-      </StaticCollider> */}
-
       <StaticCollider debug={MapDebugSettings.MapDebug}>
+        <Slopes position={[0, -4, 0]} />
+      </StaticCollider>
+
+      <StaticCollider debug={MapDebugSettings.MapDebug} friction={0.2}>
         <Floor position={[0, -6.5, 0]} />
       </StaticCollider>
+
+      <Slopes position={[15, -4, 0]} />
     </>
   );
 }

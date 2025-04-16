@@ -20,7 +20,7 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
     debug = false,
     debugVisualizeDepth = 10,
     restitution = 0.05,
-    friction = 0.5,
+    friction = 0.8,
     ...props
 }, ref) => {
     /**
@@ -55,6 +55,7 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
         scene.add(bvhHelper.current)
 
         return () => {
+            if (mergedMesh.current) useEcctrlStore.getState().removeStaticMesh(mergedMesh.current)
             mergedGeometry.dispose()
             if (bvhHelper.current) {
                 scene.remove(bvhHelper.current)
@@ -63,164 +64,168 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
     }, [])
 
     useEffect(() => {
+        if (mergedMesh.current) mergedMesh.current.userData.visible = props.visible
+    }, [props.visible])
+
+    useEffect(() => {
         if (bvhHelper.current) {
             bvhHelper.current.visible = debug
         }
     }, [debug])
 
-    useFrame((state, delta) => {
-        /**
-         * Collision Check
-         * Check if character segment range is collider with map bvh
-         * If so, getting contact point depth and direction, then apply to character 
-         */
-        // Early exit if map geometry boundsTree is not ready
-        const geometry = mergedMesh.current?.geometry;
-        const boundsTree = geometry?.boundsTree;
-        if (!boundsTree) return;
+    // useFrame((state, delta) => {
+    //     /**
+    //      * Collision Check
+    //      * Check if character segment range is collider with map bvh
+    //      * If so, getting contact point depth and direction, then apply to character 
+    //      */
+    //     // Early exit if map geometry boundsTree is not ready
+    //     const geometry = mergedMesh.current?.geometry;
+    //     const boundsTree = geometry?.boundsTree;
+    //     if (!boundsTree) return;
 
-        // Getting all useful info from global store
-        const ecctrlStore = useEcctrlStore.getState();
-        const characterGroupRef = ecctrlStore.characterGroupRef;
-        const segment = ecctrlStore.characterSegment;
-        const bbox = ecctrlStore.characterBbox;
-        const characterCollider = ecctrlStore.characterCollider;
-        const currentStatus = ecctrlStore.characterCurrentStatus
+    //     // Getting all useful info from global store
+    //     const ecctrlStore = useEcctrlStore.getState();
+    //     const characterGroupRef = ecctrlStore.characterGroupRef;
+    //     const segment = ecctrlStore.characterSegment;
+    //     const bbox = ecctrlStore.characterBbox;
+    //     const characterCollider = ecctrlStore.characterCollider;
+    //     const currentStatus = ecctrlStore.characterCurrentStatus
 
-        // ecctrlStore.resetContactPointInfo()
-        // boundsTree.shapecast({
-        //     intersectsBounds: box => box.intersectsBox(bbox),
-        //     intersectsTriangle: tri => {
-        //         const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
-        //         if (distance < characterCollider.radius) {
-        //             const contactDepth = characterCollider.radius - distance;
-        //             contactNormal.subVectors(capsuleContactPoint, triContactPoint).normalize();
-        //             // console.log(contactDepth, contactDirection);
-        //             // console.log("collid");
+    //     // ecctrlStore.resetContactPointInfo()
+    //     // boundsTree.shapecast({
+    //     //     intersectsBounds: box => box.intersectsBox(bbox),
+    //     //     intersectsTriangle: tri => {
+    //     //         const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
+    //     //         if (distance < characterCollider.radius) {
+    //     //             const contactDepth = characterCollider.radius - distance;
+    //     //             contactNormal.subVectors(capsuleContactPoint, triContactPoint).normalize();
+    //     //             // console.log(contactDepth, contactDirection);
+    //     //             // console.log("collid");
 
-        //             /**
-        //              * Character colliding logic here, (wip)
-        //              */
-        //             // Update character new position according to contactDirection and contactDepth
-        //             // if (characterGroupRef) {
-        //                 // characterGroupRef.current.position.addScaledVector(contactNormal, contactDepth);
-        //                 ecctrlStore.setContactPointInfo({ contactDepth: contactDepth, contactNormal: contactNormal })
-        //             // }
+    //     //             /**
+    //     //              * Character colliding logic here, (wip)
+    //     //              */
+    //     //             // Update character new position according to contactDirection and contactDepth
+    //     //             // if (characterGroupRef) {
+    //     //                 // characterGroupRef.current.position.addScaledVector(contactNormal, contactDepth);
+    //     //                 ecctrlStore.setContactPointInfo({ contactDepth: contactDepth, contactNormal: contactNormal })
+    //     //             // }
 
-        //             // Update debug contact point position/direction
-        //             if (debug) {
-        //                 contactPointRef.current?.position.copy(triContactPoint)
-        //                 contactPointRef.current?.lookAt(contactNormal)
-        //             }
+    //     //             // Update debug contact point position/direction
+    //     //             if (debug) {
+    //     //                 contactPointRef.current?.position.copy(triContactPoint)
+    //     //                 contactPointRef.current?.lookAt(contactNormal)
+    //     //             }
 
-        //             // Early exit collision check for better performance
-        //             // return true
-        //         }
-        //     }
-        // })
+    //     //             // Early exit collision check for better performance
+    //     //             // return true
+    //     //         }
+    //     //     }
+    //     // })
 
-        // for (let i = 0; i < 3; i++) {
-        //     let maxPenetration = 0;
-        //     let deepestDirection = new THREE.Vector3();
-        //     let deepestTriContact = new THREE.Vector3();
-        //     ecctrlStore.resetContactPointInfo()
+    //     // for (let i = 0; i < 3; i++) {
+    //     //     let maxPenetration = 0;
+    //     //     let deepestDirection = new THREE.Vector3();
+    //     //     let deepestTriContact = new THREE.Vector3();
+    //     //     ecctrlStore.resetContactPointInfo()
 
-        //     boundsTree.shapecast({
-        //         intersectsBounds: box => box.intersectsBox(bbox),
-        //         intersectsTriangle: tri => {
-        //             const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
-        //             if (distance < characterCollider.radius) {
-        //                 const penetration = characterCollider.radius - distance;
-        //                 if (penetration > maxPenetration) {
-        //                     maxPenetration = penetration;
-        //                     deepestDirection.subVectors(capsuleContactPoint, triContactPoint).normalize();
-        //                     // deepestTriContact.copy(triContactPoint);
-        //                 }
-        //                 return false;
-        //             }
-        //         }
-        //     });
+    //     //     boundsTree.shapecast({
+    //     //         intersectsBounds: box => box.intersectsBox(bbox),
+    //     //         intersectsTriangle: tri => {
+    //     //             const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
+    //     //             if (distance < characterCollider.radius) {
+    //     //                 const penetration = characterCollider.radius - distance;
+    //     //                 if (penetration > maxPenetration) {
+    //     //                     maxPenetration = penetration;
+    //     //                     deepestDirection.subVectors(capsuleContactPoint, triContactPoint).normalize();
+    //     //                     // deepestTriContact.copy(triContactPoint);
+    //     //                 }
+    //     //                 return false;
+    //     //             }
+    //     //         }
+    //     //     });
 
-        //     if (maxPenetration === 0) break;
+    //     //     if (maxPenetration === 0) break;
 
-        //     // characterGroupRef?.current.position.addScaledVector(deepestDirection, maxPenetration);
-        //     ecctrlStore.setContactPointInfo({ contactDepth: maxPenetration, contactNormal: deepestDirection })
-        // }
+    //     //     // characterGroupRef?.current.position.addScaledVector(deepestDirection, maxPenetration);
+    //     //     ecctrlStore.setContactPointInfo({ contactDepth: maxPenetration, contactNormal: deepestDirection })
+    //     // }
 
-        // let contactNormalSum = new THREE.Vector3();
+    //     // let contactNormalSum = new THREE.Vector3();
 
-        /**
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         * 
-         */
+    //     /**
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      * 
+    //      */
 
-        // totalContactDepth = 0;
-        // let maxContactDepth = 0
-        // contactNormalSum.set(0, 0, 0)
-        // let iterationNum = 0
+    //     // totalContactDepth = 0;
+    //     // let maxContactDepth = 0
+    //     // contactNormalSum.set(0, 0, 0)
+    //     // let iterationNum = 0
 
-        // boundsTree.shapecast({
-        //     intersectsBounds: box => box.intersectsBox(bbox),
-        //     intersectsTriangle: tri => {
-        //         const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
-        //         if (distance < characterCollider.radius) {
-        //             const penetration = characterCollider.radius - distance;
-        //             contactNormal.subVectors(capsuleContactPoint, triContactPoint).normalize();
+    //     // boundsTree.shapecast({
+    //     //     intersectsBounds: box => box.intersectsBox(bbox),
+    //     //     intersectsTriangle: tri => {
+    //     //         const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
+    //     //         if (distance < characterCollider.radius) {
+    //     //             const penetration = characterCollider.radius - distance;
+    //     //             contactNormal.subVectors(capsuleContactPoint, triContactPoint).normalize();
 
-        //             // Accumulate weighted normal
-        //             contactNormalSum.addScaledVector(contactNormal, penetration + 1e-5);
-        //             // contactNormalSum.add(contactNormal)
+    //     //             // Accumulate weighted normal
+    //     //             contactNormalSum.addScaledVector(contactNormal, penetration + 1e-5);
+    //     //             // contactNormalSum.add(contactNormal)
 
-        //             if (maxContactDepth < penetration) maxContactDepth = penetration
-        //             totalContactDepth += penetration;
+    //     //             if (maxContactDepth < penetration) maxContactDepth = penetration
+    //     //             totalContactDepth += penetration;
 
-        //             iterationNum += 1
+    //     //             iterationNum += 1
 
-        //             // Update debug contact point position/direction
-        //             if (debug) {
-        //                 contactPointRef.current?.position.copy(triContactPoint)
-        //                 contactPointRef.current?.lookAt(contactNormalSum)
-        //             }
+    //     //             // Update debug contact point position/direction
+    //     //             if (debug) {
+    //     //                 contactPointRef.current?.position.copy(triContactPoint)
+    //     //                 contactPointRef.current?.lookAt(contactNormalSum)
+    //     //             }
 
-        //             // Early exit: stop entire shapecast once we hit the limit
-        //             if (iterationNum >= maxIterationNum) {
-        //                 return true; // This stops the whole traversal
-        //             }
-        //         }
-        //     }
-        // });
+    //     //             // Early exit: stop entire shapecast once we hit the limit
+    //     //             if (iterationNum >= maxIterationNum) {
+    //     //                 return true; // This stops the whole traversal
+    //     //             }
+    //     //         }
+    //     //     }
+    //     // });
 
-        // if (totalContactDepth > 0) {
-        //     contactNormalSum.normalize(); // average direction
-        //     ecctrlStore.setContactPointInfo({ contactDepth: totalContactDepth, contactNormal: contactNormalSum });
-        // } else {
-        //     ecctrlStore.resetContactPointInfo();
-        // }
-    })
+    //     // if (totalContactDepth > 0) {
+    //     //     contactNormalSum.normalize(); // average direction
+    //     //     ecctrlStore.setContactPointInfo({ contactDepth: totalContactDepth, contactNormal: contactNormalSum });
+    //     // } else {
+    //     //     ecctrlStore.resetContactPointInfo();
+    //     // }
+    // })
 
     return (
         <group ref={colliderRef} {...props} dispose={null}>
