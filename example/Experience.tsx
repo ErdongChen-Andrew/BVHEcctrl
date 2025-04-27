@@ -2,19 +2,21 @@ import * as THREE from "three"
 import { Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
-import Ecctrl from "../src/Ecctrl";
 import Floor from "./Floor";
 import Lights from "./Lights";
 import Slopes from "./Slopes";
 import RoughPlane from "./RoughPlane";
-import { useControls } from "leva";
+import { useControls, folder } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
-import EcctrlMini, { characterStatus } from "../src/EcctrlMini"
+import BVHEcctrl, { characterStatus } from "../src/BVHEcctrl"
 import StaticCollider from "../src/StaticCollider"
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
+import TestMap from "./TestMap";
+import InstancedMap from "./InstancedMap";
+import { clamp } from "three/src/math/MathUtils.js";
 
 export default function Experience() {
   /**
@@ -22,13 +24,49 @@ export default function Experience() {
    */
   const camControlRef = useRef<ThreeOrbitControls | null>(null)
   // const camControlRef = useRef<ThreePointerLockControls | null>(null)
-
   const ecctrlRef = useRef<THREE.Group | null>(null)
-  const EcctrlMiniDebugSettings = useControls("EcctrlMini Debug", {
-    EcctrlMiniDebug: true,
+  const characterModelRef = useRef<THREE.Group | null>(null)
+  const kinematicCollderRef = useRef<THREE.Group | null>(null)
+  const EcctrlDebugSettings = useControls("Ecctrl Debug", {
+    EcctrlDebug: false,
+    Physics: folder({
+      gravity: { value: 9.81, min: 0, max: 50, step: 0.1 },
+      fallGravityFactor: { value: 4, min: 1, max: 10, step: 0.1 },
+      maxFallSpeed: { value: 50, min: 1, max: 200, step: 1 },
+      mass: { value: 1, min: 0.1, max: 10, step: 0.1 },
+    }, { collapsed: true }),
+    Movement: folder({
+      turnSpeed: { value: 15, min: 0, max: 100, step: 1 },
+      maxWalkSpeed: { value: 3, min: 0, max: 10, step: 0.1 },
+      maxRunSpeed: { value: 5, min: 0, max: 20, step: 0.1 },
+      acceleration: { value: 26, min: 0, max: 100, step: 1 },
+      deceleration: { value: 10, min: 0, max: 50, step: 1 },
+      counterVelFactor: { value: 1.5, min: 0, max: 5, step: 0.1 },
+      airDragFactor: { value: 0.3, min: 0, max: 1, step: 0.05 },
+      jumpVel: { value: 5, min: 0, max: 20, step: 0.1 },
+    }, { collapsed: true }),
+    Floating: folder({
+      maxSlope: { value: 1, min: 0, max: Math.PI / 2, step: 0.01 },
+      floatHeight: { value: 0.2, min: 0, max: 1, step: 0.01 },
+      floatPullBackHeight: { value: 0.25, min: 0, max: 1, step: 0.01 },
+      floatSensorRadius: { value: 0.12, min: 0, max: 1, step: 0.01 },
+      floatSpringK: { value: 320, min: 0, max: 1000, step: 10 },
+      floatDampingC: { value: 24, min: 0, max: 100, step: 1 },
+    }, { collapsed: true }),
+    Collision: folder({
+      collisionCheckIteration: { value: 3, min: 1, max: 10, step: 1 },
+      collisionPushBackVelocity: { value: 8, min: 0, max: 50, step: 0.1 },
+      collisionPushBackDamping: { value: 0.5, min: 0, max: 1, step: 0.05 },
+      collisionPushBackThreshold: { value: 1e-5, min: 0, max: 1, step: 0.01 },
+    }, { collapsed: true }),
   })
-  const MapDebugSettings = useControls("Map Debug", {
-    MapDebug: true,
+  const EcctrlMapDebugSettings = useControls("MAp Debug", {
+    MapDebug: false,
+    Map: folder({
+      visible: true,
+      friction: { value: 0.8, min: 0, max: 1, step: 0.01 },
+      restitution: { value: 0.05, min: 0, max: 1, step: 0.01 },
+    }, { collapsed: true }),
   })
 
   /**
@@ -42,6 +80,13 @@ export default function Experience() {
 
     return () => clearTimeout(timeout);
   }, []);
+
+  // useEffect(() => {
+  //   window.addEventListener("visibilitychange", setPausedPhysics(false));
+  //   return () => {
+  //     window.removeEventListener("visibilitychange", setPausedPhysics(false));
+  //   }
+  // }, [])
 
   /**
    * Keyboard control preset
@@ -59,6 +104,36 @@ export default function Experience() {
     { name: "action4", keys: ["KeyF"] },
   ];
 
+  /**
+   * Initialize character facing direction
+   */
+  // useEffect(() => {
+  //   characterModelRef.current?.parent?.rotateY(1)
+  // }, [])
+
+  /**
+   * Show/hide map collider
+   */
+  const [show, setShow] = useState(true)
+  // useEffect(() => {
+  //   setInterval(() => {
+  //     setShow(prev => !prev)
+  //   }, 5000)
+  // }, [])
+
+  /**
+   * Stress test array preset
+   */
+  const mapGrid: [number, number, number][] = []
+  const layers = 2
+  const spacingX = 12.3
+  const spacingZ = 17.8
+  for (let x = -layers; x <= layers; x++) {
+    for (let z = -layers; z <= layers; z++) {
+      mapGrid.push([x * spacingX, 0, z * spacingZ]);
+    }
+  }
+
   useFrame((state) => {
     // For orbit control to follow character
     if (camControlRef.current && ecctrlRef.current) {
@@ -70,14 +145,12 @@ export default function Experience() {
     // if (camControlRef.current && ecctrlRef.current) {
     //   state.camera.position.copy(ecctrlRef.current.position)
     // }
-  })
 
-  const [show, setShow] = useState(true)
-  // useEffect(() => {
-  //   setInterval(() => {
-  //     setShow(prev => !prev)
-  //   }, 5000)
-  // }, [])
+    if (kinematicCollderRef.current) {
+      kinematicCollderRef.current.position.z = clamp(Math.sin(state.clock.elapsedTime), -2, 3)
+      // kinematicCollderRef.current.rotation.y = state.clock.elapsedTime
+    }
+  })
 
   return (
     <>
@@ -103,55 +176,77 @@ export default function Experience() {
         userData={{ camExcludeCollision: true }} // this won't be collide by camera ray
       /> */}
 
-      {/* <Lights /> */}
+      <Lights />
 
-      <Environment background blur={0.5} files="textures/sky.hdr" />
+      <Environment background blur={0.6} environmentIntensity={0.1} files="/textures/sky.hdr" />
 
       {/* Keyboard preset */}
       <KeyboardControls map={keyboardMap}>
         {/* Character Control */}
-        <EcctrlMini
+        <BVHEcctrl
           ref={ecctrlRef}
-          debug={EcctrlMiniDebugSettings.EcctrlMiniDebug}
+          debug={EcctrlDebugSettings.EcctrlDebug}
           enableGravity={!pausedPhysics}
-          position={[-8, 3, 0]}
+          {...EcctrlDebugSettings}
         >
           {/* Character Model */}
-          {/* <group>
-              <mesh>
-                <capsuleGeometry args={[0.3, 0.5, 6, 16]} />
-                <meshStandardMaterial />
-              </mesh>
-              <mesh position={[0, 0.2, 0.3]}>
-                <boxGeometry args={[0.4, 0.2, 0.2]} />
-                <meshStandardMaterial color={"gray"} />
-              </mesh>
-            </group> */}
-        </EcctrlMini>
+          <group ref={characterModelRef}>
+            <CharacterModel />
+          </group>
+        </BVHEcctrl>
       </KeyboardControls>
 
       {/* Map */}
-      {/* {show && <StaticCollider debug={MapDebugSettings.MapDebug}>
+      {/* {show && <StaticCollider>
         <Map />
       </StaticCollider>} */}
 
-      <StaticCollider debug={MapDebugSettings.MapDebug} visible={show}>
+      {/* <StaticCollider visible={show} position={[10,0,0]}>
         <Map />
-      </StaticCollider>
+      </StaticCollider> */}
 
-      <StaticCollider debug={MapDebugSettings.MapDebug}>
+      {/* <StaticCollider >
         <RoughPlane />
-      </StaticCollider>
+      </StaticCollider> */}
 
-      <StaticCollider debug={MapDebugSettings.MapDebug}>
+      {/* <StaticCollider >
         <Slopes position={[0, -4, 0]} />
-      </StaticCollider>
+      </StaticCollider> */}
 
-      <StaticCollider debug={MapDebugSettings.MapDebug} friction={0.2}>
+      {/* <StaticCollider >
         <Floor position={[0, -6.5, 0]} />
+      </StaticCollider> */}
+
+      {/* <StaticCollider >
+        <Plaza />
+      </StaticCollider> */}
+
+      <StaticCollider
+        debug={EcctrlMapDebugSettings.MapDebug}
+        {...EcctrlMapDebugSettings}
+      >
+        <TestMap position={[0, -3, 0]} />
       </StaticCollider>
 
-      <Slopes position={[15, -4, 0]} />
+      {/* Stress test */}
+      {/* <StaticCollider debug>
+        <InstancedMap />
+      </StaticCollider> */}
+      {/* <StaticCollider>
+        <group position={[0, 0, 0]}>
+          {mapGrid.map((pos, idx) => (
+            <Map key={`inner-${idx}`} position={pos} />
+          ))}
+        </group>
+      </StaticCollider> */}
+
+      {/* Moving Platform */}
+      <StaticCollider ref={kinematicCollderRef} debug={EcctrlMapDebugSettings.MapDebug}>
+        <mesh castShadow receiveShadow position={[0, -2.5, 0]}>
+          <boxGeometry args={[3, 0.2, 3]} />
+          <meshStandardMaterial />
+        </mesh>
+      </StaticCollider>
     </>
   );
 }

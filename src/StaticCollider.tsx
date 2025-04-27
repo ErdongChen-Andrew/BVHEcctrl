@@ -35,197 +35,149 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
         if (!colliderRef.current) return;
 
         colliderRef.current.updateMatrixWorld(true);
-        const staticGenerator = new StaticGeometryGenerator(colliderRef.current);
+
+        const meshes: THREE.Mesh[] = [];
+        colliderRef.current.traverse(obj => {
+            if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh);
+        });
+
+        const staticGenerator = new StaticGeometryGenerator(meshes);
         staticGenerator.attributes = ['position', 'normal'];
         const mergedGeometry = staticGenerator.generate();
         mergedGeometry.boundsTree = new MeshBVH(mergedGeometry);
         mergedMesh.current = new THREE.Mesh(mergedGeometry)
 
-        // colliderRef.current.userData.restitution = restitution
-        // colliderRef.current.userData.mergedMesh = mergedMesh.current
         mergedMesh.current.userData.restitution = restitution
         mergedMesh.current.userData.friction = friction
 
-
-        // useEcctrlStore.getState().setStaticBoundsTree(mergedGeometry.boundsTree)
         useEcctrlStore.getState().setStaticMeshesArray(mergedMesh.current)
 
-        // Debug helper setup
-        bvhHelper.current = new MeshBVHHelper(mergedMesh.current, 20)
-        scene.add(bvhHelper.current)
-
         return () => {
-            if (mergedMesh.current) useEcctrlStore.getState().removeStaticMesh(mergedMesh.current)
-            mergedGeometry.dispose()
+            if (mergedMesh.current) {
+                useEcctrlStore.getState().removeStaticMesh(mergedMesh.current)
+                mergedGeometry.dispose()
+                mergedMesh.current = null
+            }
             if (bvhHelper.current) {
-                scene.remove(bvhHelper.current)
+                scene.remove(bvhHelper.current);
+                (bvhHelper.current as any).dispose?.()
+                bvhHelper.current = null
             };
         };
     }, [])
 
-    useEffect(() => {
-        if (mergedMesh.current) mergedMesh.current.userData.visible = props.visible
-    }, [props.visible])
+    // useEffect(() => {
+    //     const geometries: THREE.BufferGeometry[] = []
+    //     const tempObj = new THREE.Object3D()
+
+    //     colliderRef.current.updateMatrixWorld(true)
+
+    //     colliderRef.current.traverse(obj => {
+    //         if ((obj as THREE.InstancedMesh).isInstancedMesh) {
+    //             const instanced = obj as THREE.InstancedMesh
+    //             const baseMatrix = obj.matrixWorld.clone()
+
+    //             for (let i = 0; i < instanced.count; i++) {
+    //                 const instanceMatrix = new THREE.Matrix4()
+    //                 instanced.getMatrixAt(i, instanceMatrix)
+
+    //                 const worldMatrix = new THREE.Matrix4().multiplyMatrices(baseMatrix, instanceMatrix)
+    //                 const transformedGeometry = instanced.geometry.clone()
+    //                 transformedGeometry.applyMatrix4(worldMatrix)
+
+    //                 geometries.push(transformedGeometry)
+    //             }
+    //         } else if ((obj as THREE.Mesh).isMesh) {
+    //             const mesh = obj as THREE.Mesh
+    //             const geo = mesh.geometry.clone()
+    //             // geo.applyMatrix4(mesh.matrixWorld)
+    //             geometries.push(geo)
+    //         }
+    //     })
+
+    //     const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries, false)
+    //     mergedGeometry.boundsTree = new MeshBVH(mergedGeometry)
+    //     mergedMesh.current = new THREE.Mesh(mergedGeometry)
+    //     mergedMesh.current.userData.friction = friction
+    //     mergedMesh.current.userData.restitution = restitution
+    //     useEcctrlStore.getState().setStaticMeshesArray(mergedMesh.current)
+    // }, [])
 
     useEffect(() => {
-        if (bvhHelper.current) {
-            bvhHelper.current.visible = debug
+        if (mergedMesh.current) {
+            mergedMesh.current.visible = props.visible ?? true
+            mergedMesh.current.userData.friction = friction
+            mergedMesh.current.userData.restitution = restitution
+        }
+    }, [props.visible, friction, restitution])
+
+    // Debug helper setup
+    useEffect(() => {
+        if (mergedMesh.current) {
+            if (bvhHelper.current) {
+                bvhHelper.current.visible = debug
+            } else {
+                bvhHelper.current = new MeshBVHHelper(mergedMesh.current, 20)
+                bvhHelper.current.visible = debug
+                scene.add(bvhHelper.current)
+            }
         }
     }, [debug])
 
-    // useFrame((state, delta) => {
-    //     /**
-    //      * Collision Check
-    //      * Check if character segment range is collider with map bvh
-    //      * If so, getting contact point depth and direction, then apply to character 
-    //      */
-    //     // Early exit if map geometry boundsTree is not ready
-    //     const geometry = mergedMesh.current?.geometry;
-    //     const boundsTree = geometry?.boundsTree;
-    //     if (!boundsTree) return;
+    /**
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     */
+    const prevMatrix = useRef(new THREE.Matrix4());
+    const prevPosition = useRef(new THREE.Vector3());
+    const velocity = useRef(new THREE.Vector3());
+    useFrame((state, delta) => {
+        if (mergedMesh.current && colliderRef.current) {
+            // 1. Get current world position of collider
+            const currentPos = new THREE.Vector3();
+            colliderRef.current.getWorldPosition(currentPos);
 
-    //     // Getting all useful info from global store
-    //     const ecctrlStore = useEcctrlStore.getState();
-    //     const characterGroupRef = ecctrlStore.characterGroupRef;
-    //     const segment = ecctrlStore.characterSegment;
-    //     const bbox = ecctrlStore.characterBbox;
-    //     const characterCollider = ecctrlStore.characterCollider;
-    //     const currentStatus = ecctrlStore.characterCurrentStatus
+            // 2. Compute velocity: v = (current - previous) / delta
+            velocity.current
+                .copy(currentPos)
+                .sub(prevPosition.current)
+                .divideScalar(delta);
 
-    //     // ecctrlStore.resetContactPointInfo()
-    //     // boundsTree.shapecast({
-    //     //     intersectsBounds: box => box.intersectsBox(bbox),
-    //     //     intersectsTriangle: tri => {
-    //     //         const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
-    //     //         if (distance < characterCollider.radius) {
-    //     //             const contactDepth = characterCollider.radius - distance;
-    //     //             contactNormal.subVectors(capsuleContactPoint, triContactPoint).normalize();
-    //     //             // console.log(contactDepth, contactDirection);
-    //     //             // console.log("collid");
+            // 3. Save current position for next frame
+            prevPosition.current.copy(currentPos);
 
-    //     //             /**
-    //     //              * Character colliding logic here, (wip)
-    //     //              */
-    //     //             // Update character new position according to contactDirection and contactDepth
-    //     //             // if (characterGroupRef) {
-    //     //                 // characterGroupRef.current.position.addScaledVector(contactNormal, contactDepth);
-    //     //                 ecctrlStore.setContactPointInfo({ contactDepth: contactDepth, contactNormal: contactNormal })
-    //     //             // }
+            // 4. Transform mergedMesh to match colliderRef
+            mergedMesh.current.matrix.copy(colliderRef.current.matrixWorld);
+            mergedMesh.current.matrix.decompose(
+                mergedMesh.current.position,
+                mergedMesh.current.quaternion,
+                mergedMesh.current.scale
+            );
+            mergedMesh.current.updateMatrixWorld(true);
 
-    //     //             // Update debug contact point position/direction
-    //     //             if (debug) {
-    //     //                 contactPointRef.current?.position.copy(triContactPoint)
-    //     //                 contactPointRef.current?.lookAt(contactNormal)
-    //     //             }
-
-    //     //             // Early exit collision check for better performance
-    //     //             // return true
-    //     //         }
-    //     //     }
-    //     // })
-
-    //     // for (let i = 0; i < 3; i++) {
-    //     //     let maxPenetration = 0;
-    //     //     let deepestDirection = new THREE.Vector3();
-    //     //     let deepestTriContact = new THREE.Vector3();
-    //     //     ecctrlStore.resetContactPointInfo()
-
-    //     //     boundsTree.shapecast({
-    //     //         intersectsBounds: box => box.intersectsBox(bbox),
-    //     //         intersectsTriangle: tri => {
-    //     //             const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
-    //     //             if (distance < characterCollider.radius) {
-    //     //                 const penetration = characterCollider.radius - distance;
-    //     //                 if (penetration > maxPenetration) {
-    //     //                     maxPenetration = penetration;
-    //     //                     deepestDirection.subVectors(capsuleContactPoint, triContactPoint).normalize();
-    //     //                     // deepestTriContact.copy(triContactPoint);
-    //     //                 }
-    //     //                 return false;
-    //     //             }
-    //     //         }
-    //     //     });
-
-    //     //     if (maxPenetration === 0) break;
-
-    //     //     // characterGroupRef?.current.position.addScaledVector(deepestDirection, maxPenetration);
-    //     //     ecctrlStore.setContactPointInfo({ contactDepth: maxPenetration, contactNormal: deepestDirection })
-    //     // }
-
-    //     // let contactNormalSum = new THREE.Vector3();
-
-    //     /**
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      * 
-    //      */
-
-    //     // totalContactDepth = 0;
-    //     // let maxContactDepth = 0
-    //     // contactNormalSum.set(0, 0, 0)
-    //     // let iterationNum = 0
-
-    //     // boundsTree.shapecast({
-    //     //     intersectsBounds: box => box.intersectsBox(bbox),
-    //     //     intersectsTriangle: tri => {
-    //     //         const distance = tri.closestPointToSegment(segment, triContactPoint, capsuleContactPoint);
-    //     //         if (distance < characterCollider.radius) {
-    //     //             const penetration = characterCollider.radius - distance;
-    //     //             contactNormal.subVectors(capsuleContactPoint, triContactPoint).normalize();
-
-    //     //             // Accumulate weighted normal
-    //     //             contactNormalSum.addScaledVector(contactNormal, penetration + 1e-5);
-    //     //             // contactNormalSum.add(contactNormal)
-
-    //     //             if (maxContactDepth < penetration) maxContactDepth = penetration
-    //     //             totalContactDepth += penetration;
-
-    //     //             iterationNum += 1
-
-    //     //             // Update debug contact point position/direction
-    //     //             if (debug) {
-    //     //                 contactPointRef.current?.position.copy(triContactPoint)
-    //     //                 contactPointRef.current?.lookAt(contactNormalSum)
-    //     //             }
-
-    //     //             // Early exit: stop entire shapecast once we hit the limit
-    //     //             if (iterationNum >= maxIterationNum) {
-    //     //                 return true; // This stops the whole traversal
-    //     //             }
-    //     //         }
-    //     //     }
-    //     // });
-
-    //     // if (totalContactDepth > 0) {
-    //     //     contactNormalSum.normalize(); // average direction
-    //     //     ecctrlStore.setContactPointInfo({ contactDepth: totalContactDepth, contactNormal: contactNormalSum });
-    //     // } else {
-    //     //     ecctrlStore.resetContactPointInfo();
-    //     // }
-    // })
+            // 5. Optional: assign velocity to mergedMesh for character to use
+            mergedMesh.current.userData.velocity = velocity.current.clone();
+        }
+    })
+    /**
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     * 
+     */
 
     return (
         <group ref={colliderRef} {...props} dispose={null}>

@@ -6,7 +6,7 @@ Source: https://sketchfab.com/3d-models/fantasy-game-inn-192bf30a7e28425ab385aef
 Title: Fantasy Game Inn
 */
 
-import { Clone, Helper, useGLTF, useHelper } from "@react-three/drei";
+import { Clone, Helper, Merged, useGLTF, useHelper } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useControls } from "leva";
 import { useEffect, useRef } from "react";
@@ -14,24 +14,13 @@ import { MeshBVHHelper } from "three-mesh-bvh";
 
 export default function Map(props) {
   /**
-   * Debug settings
-   */
-  // const { BVHHelper, visualizeDepth } = useControls("Map Settings", {
-  //   BVHHelper: true,
-  //   visualizeDepth: {
-  //     value: 10,
-  //     min: 1,
-  //     max: 30,
-  //   },
-  // });
-
-  /**
    * Initialize
    */
   const mapMeshRef = useRef(null);
   // Load map model
-  const { nodes, materials } = useGLTF("./fantasy_game_inn.glb");
-  const slopesModel = useGLTF("./SU7.glb");
+  const bakeInnModel = useGLTF("./fantasy_game_inn.glb");
+  const su7Model = useGLTF("./SU7.glb");
+
   // useEffect(()=>{
   // console.log(mapMeshRef.current.geometry.boundsTree);
   // nodes.TheInn_bakeInn_0.geometry.deleteAttribute('uv1');
@@ -50,35 +39,20 @@ export default function Map(props) {
 
   return (
     <group {...props} dispose={null}>
-      <group rotation={[-Math.PI / 2, 0, 0]} scale={0.11}>
-        <mesh
-          ref={mapMeshRef}
-          castShadow
-          receiveShadow
-          geometry={nodes.TheInn_bakeInn_0.geometry}
-        >
-          <meshStandardMaterial map={materials.bakeInn.map} />
-          {/* <Helper type={MeshBVHHelper} args={[20]} /> */}
-        </mesh>
-      </group>
-
-      {/* <Clone object={slopesModel.scene} position={[0,-1.2,5]} rotation={[0,0.5,0]}/> */}
-      <Clone object={slopesModel.scene} position={[0,-1.2,0]}/>
-
-
-      {/* <mesh position={[-1, -1, 0]} rotation={[1,0,0]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial />
-      </mesh> */}
-
-      {/* <mesh position={[0, -1.1, 0]} >
-        <boxGeometry args={[10, 0.1, 10]} />
-        <meshStandardMaterial />
-      </mesh> */}
+      {/* <Clone object={bakeInnModel.scene} position={[-33, -8, -2]} /> */}
+      <mesh
+        castShadow
+        receiveShadow
+        geometry={bakeInnModel.nodes.TheInn_bakeInn_0.geometry}
+        rotation={[-Math.PI / 2, 0, 0]}
+        scale={0.11}
+      >
+        <meshStandardMaterial map={bakeInnModel.materials.bakeInn.map} />
+      </mesh>
+      {/* <Clone object={su7Model.scene} position={[0, -1.2, 4.5]} /> */}
     </group>
   );
 }
 
 useGLTF.preload("./fantasy_game_inn.glb");
-useGLTF.preload("./SU7.glb");
-
+// useGLTF.preload("./SU7.glb");
