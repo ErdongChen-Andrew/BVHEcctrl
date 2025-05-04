@@ -23,6 +23,7 @@ import { clamp, lerp } from "three/src/math/MathUtils";
  * 3. Fg = mass * gravity
  * 4. F(spring) = -k(x - x0)
  * 5. F(damping) = -c * v
+ * 6. linVel = radius x angVel
  */
 
 // const getAzimuthalAngle = (camera: THREE.Camera, upAxis: THREE.Vector3): number => {
@@ -60,6 +61,7 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     fallGravityFactor?: number;
     maxFallSpeed?: number;
     mass?: number;
+    sleepTimeout?: number;
     turnSpeed?: number;
     maxWalkSpeed?: number;
     maxRunSpeed?: number;
@@ -92,6 +94,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     fallGravityFactor = 4,
     maxFallSpeed = 50,
     mass = 1,
+    sleepTimeout = 10,
     // Controller props
     turnSpeed = 15,
     maxWalkSpeed = 3,
@@ -110,9 +113,9 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     // Collision check props
     collisionCheckIteration = 3,
     // collisionPushBackStrength = 200,
-    collisionPushBackVelocity = 8,
-    collisionPushBackDamping = 0.5,
-    collisionPushBackThreshold = 1e-5,
+    collisionPushBackVelocity = 3,
+    collisionPushBackDamping = 0.01,
+    collisionPushBackThreshold = 0.001,
     // Other props
     ...props
 }, ref) => {
@@ -186,6 +189,12 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const isFalling = useRef<boolean>(false)
 
     /**
+     * Sleep character preset
+     */
+    const idleTime = useRef<number>(0);
+    const isSleeping = useRef<boolean>(false);
+
+    /**
      * Follow camera prest
      */
     // const camViewDir = useRef<THREE.Vector3>(new THREE.Vector3())
@@ -207,7 +216,6 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const deltaLinVel = useRef<THREE.Vector3>(new THREE.Vector3())
     const counterVel = useRef<THREE.Vector3>(new THREE.Vector3())
     const wantToMoveVel = useRef<THREE.Vector3>(new THREE.Vector3())
-    const relativeVel = useRef<THREE.Vector3>(new THREE.Vector3())
     const isOnGround = useRef<boolean>(false)
     const characterModelTargetQuat = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const characterModelLookMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
@@ -235,6 +243,10 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const localCharacterSegment = useRef<THREE.Line3>(new THREE.Line3())
     const collideInvertMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
     const collideNormalMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
+    const relativeCollideVel = useRef<THREE.Vector3>(new THREE.Vector3())
+    const relativeContactPoint = useRef<THREE.Vector3>(new THREE.Vector3())
+    const contactPointRotationalVel = useRef<THREE.Vector3>(new THREE.Vector3())
+    const platformVelocityAtContactPoint = useRef<THREE.Vector3>(new THREE.Vector3())
 
     /**
      * Floating sensor preset
@@ -267,9 +279,15 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const localFloatSensorBboxExpendPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const localFloatSensorSegment = useRef<THREE.Line3>(new THREE.Line3())
     const floatInvertMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
+    const floatNormalInverseMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
     const floatNormalMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
     // const floatRaycaster = useRef<THREE.Raycaster>(new THREE.Raycaster())
     // floatRaycaster.current.far = floatHeight + floatForgiveness
+    const relativeHitPoint = useRef<THREE.Vector3>(new THREE.Vector3())
+    const rotationDeltaPos = useRef<THREE.Vector3>(new THREE.Vector3())
+    const yawQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion())
+    const totalPlatformDeltaPos = useRef<THREE.Vector3>(new THREE.Vector3())
+    const isOnMovingPlatform = useRef<boolean>(false)
 
     /**
      * Gravity funtion
@@ -281,6 +299,22 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
             currentLinVel.current.addScaledVector(gravityDir, gravity * (isFalling.current ? fallGravityFactor : 1) * delta)
         }
     }, [gravity, fallGravityFactor, maxFallSpeed, gravityDir])
+
+    /**
+     * Check if need to sleep character function
+     */
+    const checkCharacterSleep = useCallback((jump: boolean, delta: number) => {
+        const moving = currentLinVel.current.lengthSq() > 1e-6;
+        const platformIsMoving = totalPlatformDeltaPos.current.lengthSq() > 1e-6;
+
+        if (!moving && isOnGround.current && !jump && !isOnMovingPlatform.current && !platformIsMoving) {
+            idleTime.current += delta;
+            if (idleTime.current > sleepTimeout) isSleeping.current = true;
+        } else {
+            idleTime.current = 0;
+            isSleeping.current = false;
+        }
+    }, [])
 
     /**
      * Get camera azimuthal angle funtion
@@ -335,7 +369,6 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const handleCharacterMovement = useCallback((runState: boolean, delta: number) => {
         // Get and clamp groundFriction to a reasonable number
         const friction = clamp(groundFriction.current, 0, 1)
-        // Math.max(0.05, Math.min(groundFriction.current, 1));
 
         // Check if there is a user input to move character
         if (inputDir.current.lengthSq() > 0) {
@@ -383,6 +416,9 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
      * Update character and float senenor segment/bbox function (world space)
      */
     const updateSegmentBBox = useCallback(() => {
+        // Exit if characterGroupRef is not ready
+        if (!characterGroupRef.current) return
+
         // Update character capsule segment
         characterSegment.current.start.set(0, capsuleLength / 2, 0).add(characterGroupRef.current.position)
         characterSegment.current.end.set(0, -capsuleLength / 2, 0).add(characterGroupRef.current.position)
@@ -410,7 +446,10 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     /**
      * Handle character collision response function
      */
-    const handleCollisionResponse = useCallback((staticMeshesArray: THREE.Mesh[], delta: number) => {
+    const handleCollisionResponse = useCallback((colliderMeshesArray: THREE.Mesh[], delta: number) => {
+        // Exit if colliderMeshesArray is not ready
+        if (colliderMeshesArray.length === 0) return
+
         /**
          * Collision Check
          * Check if character segment range is collider with map bvh
@@ -418,7 +457,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
          */
         // Check collisions multiple times for better precision 
         for (let i = 0; i < collisionCheckIteration; i++) {
-            for (const mesh of staticMeshesArray) {
+            for (const mesh of colliderMeshesArray) {
                 // Early exit if map is not visible and if map geometry boundsTree is not ready
                 if (!mesh.visible || !mesh.geometry.boundsTree) continue;
 
@@ -442,6 +481,9 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                 // Reset contact point info
                 contactDepth.current = 0
                 contactNormal.current.set(0, 0, 0)
+                absorbVel.current.set(0, 0, 0)
+                pushBackVel.current.set(0, 0, 0)
+                platformVelocityAtContactPoint.current.set(0, 0, 0)
 
                 // Bounds tree conllision check, finding contact normal and depth using localBox & localSegment
                 mesh.geometry.boundsTree.shapecast({
@@ -459,13 +501,26 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                             contactNormal.current.copy(capsuleContactPoint.current).sub(triContactPoint.current);
                             // Transform normal to world space using normalMatrix
                             contactNormal.current.applyMatrix3(collideNormalMatrix.current).normalize();
+                            // Transform triContactPoint to world space
+                            triContactPoint.current.applyMatrix4(mesh.matrixWorld)
 
                             /**
-                             * For moving platform
+                             * For different type of platforms
                              */
                             // if collide with moving platform, calculate relativeVel with platformVelocity
-                            // otherwise relativeVel is currentLinVel
-                            relativeVel.current.copy(currentLinVel.current).sub(mesh.userData.velocity);
+                            // otherwise relativeVel is same as the currentLinVel
+                            if (mesh.userData.type === "STATIC") {
+                                relativeCollideVel.current.copy(currentLinVel.current)
+                            } else if (mesh.userData.type === "KINEMATIC") {
+                                // Convert angular velocity to linear velocity at the contact point: linVel = radius x angVel
+                                // relativeContactPoint is the radius of the rotation, contactPointRotationalVel is converted linear velocity
+                                relativeContactPoint.current.copy(triContactPoint.current).sub(mesh.userData.center)
+                                contactPointRotationalVel.current.crossVectors(mesh.userData.angularVelocity, relativeContactPoint.current);
+                                // Combine linear & angular velocity to form total platform velocity at the triContactPoint
+                                platformVelocityAtContactPoint.current.copy(mesh.userData.linearVelocity).add(contactPointRotationalVel.current);
+                                // Now finally compute relative velocity
+                                relativeCollideVel.current.copy(currentLinVel.current).sub(platformVelocityAtContactPoint.current);
+                            }
 
                             /**
                              * Resolve character collision velocity
@@ -474,121 +529,57 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                              * If character stuck inside colliders
                              * Apply push-back force based on contact depth
                              */
-                            const intoSurfaceVel = relativeVel.current.dot(contactNormal.current);
-                            // Absorb velocity & push back only if moving into the surface
+                            const intoSurfaceVel = relativeCollideVel.current.dot(contactNormal.current);
+
+                            // Absorb velocity based on restitution
                             if (intoSurfaceVel < 0) {
-                                // Absorb velocity based on restitution
                                 absorbVel.current.copy(contactNormal.current).multiplyScalar(-intoSurfaceVel * (1 + mesh.userData.restitution));
                                 currentLinVel.current.add(absorbVel.current);
+                            }
 
-                                // Apply pushback if depth is above threshold
-                                if (contactDepth.current > collisionPushBackThreshold) {
-                                    // Damping strength should scale based on how deep and how fast we go in
-                                    const damping = clamp(intoSurfaceVel * collisionPushBackDamping, 0, collisionPushBackVelocity);
-                                    pushBackVel.current.copy(contactNormal.current).multiplyScalar((collisionPushBackVelocity * contactDepth.current) - damping);
-                                    currentLinVel.current.add(pushBackVel.current);
-                                }
+                            // Apply push-back if contact depth is above threshold
+                            if (contactDepth.current > collisionPushBackThreshold) {
+                                const correction = (collisionPushBackDamping / delta) * contactDepth.current;
+                                pushBackVel.current.copy(contactNormal.current).multiplyScalar(correction);
+                                currentLinVel.current.add(pushBackVel.current);
+                            }
+
+                            /**
+                             * Debug setup: indicate contact point and direction
+                             */
+                            if (debug && contactPointRef.current) {
+                                // Apply the updated values to contact indicator
+                                contactPointRef.current.position.copy(triContactPoint.current)
+                                contactPointRef.current.lookAt(contactNormal.current)
                             }
                         }
                     }
                 })
             }
         }
-    }, [collisionCheckIteration, capsuleRadius, collisionPushBackThreshold, collisionPushBackDamping, collisionPushBackVelocity]);
-
-    /**
-     * 
-     */
-    // const handleCollisionResponse = useCallback((staticMeshesArray: THREE.Mesh[], delta: number) => {
-    //     /**
-    //      * Collision Check
-    //      * Check if character segment range is collider with map bvh
-    //      * If so, getting contact point depth and direction, then apply to character velocity
-    //      */
-    //     // Check collisions multiple times for better precision 
-    //     for (let i = 0; i < collisionCheckIteration; i++) {
-    //         for (const mesh of staticMeshesArray) {
-    //             // Early exit if map is not visible and if map geometry boundsTree is not ready
-    //             if (!mesh.visible || !mesh.geometry.boundsTree) continue;
-
-    //             // Reset contact point info
-    //             contactDepth.current = 0
-    //             contactNormal.current.set(0, 0, 0)
-    //             // triContactPoint.current.set(0, 0, 0)
-    //             // capsuleContactPoint.current.set(0, 0, 0)
-
-    //             // Bounds tree conllision check, finding contact normal and depth
-    //             mesh.geometry.boundsTree.shapecast({
-    //                 // If not intersects with character bbox, just stop entire shapecast
-    //                 intersectsBounds: box => box.intersectsBox(characterBbox.current),
-    //                 // If intersects with character bbox, deeply check collision with character segment
-    //                 intersectsTriangle: tri => {
-    //                     // Find distance to character segment
-    //                     const distance = tri.closestPointToSegment(characterSegment.current, triContactPoint.current, capsuleContactPoint.current);
-
-    //                     // If distance is less then character capsule radius, means there is a collision happening
-    //                     if (distance < capsuleRadius) {
-    //                         // Calculate collision contact depth and normal
-    //                         contactDepth.current = capsuleRadius - distance;
-    //                         contactNormal.current.subVectors(capsuleContactPoint.current, triContactPoint.current).normalize();
-    //                     }
-
-    //                     /**
-    //                      * Resolve character collision velocity
-    //                      * Absorb velocity at direction into collider, 
-    //                      * optionly apply bounce velocity from collider (restitution)
-    //                      */
-    //                     const dot = currentLinVel.current.dot(contactNormal.current);
-    //                     if (dot < 0) {
-    //                         absorbVel.current.copy(contactNormal.current).multiplyScalar(-dot * (1 + mesh.userData.restitution))
-    //                         currentLinVel.current.add(absorbVel.current);
-    //                     }
-
-    //                     /**
-    //                      * If character stuck inside colliders
-    //                      * Apply push-back force based on contact depth
-    //                      */
-    //                     if (contactDepth.current > collisionPushBackThreshold) {
-    //                         // Dot product gives how fast we're moving *into* the wall
-    //                         const intoSurfaceVel = currentLinVel.current.dot(contactNormal.current);
-    //                         // Damping strength should scale based on how deep and how fast we go in
-    //                         const damping = clamp(intoSurfaceVel * collisionPushBackDamping, 0, collisionPushBackVelocity);
-    //                         // Final push-back velocity
-    //                         pushBackVel.current.copy(contactNormal.current).multiplyScalar((collisionPushBackVelocity * contactDepth.current) - damping);
-    //                         currentLinVel.current.add(pushBackVel.current);
-    //                     }
-
-    //                     /**
-    //                      * Debug setup: indicate contact point and direction
-    //                      */
-    //                     if (debug) {
-    //                         // Apply the updated values to contact indicator
-    //                         contactPointRef.current?.position.copy(triContactPoint.current)
-    //                         contactPointRef.current?.lookAt(contactNormal.current)
-    //                     }
-    //                 }
-    //             });
-    //         }
-    //     }
-    // }, [collisionCheckIteration, capsuleRadius, collisionPushBackThreshold, collisionPushBackDamping, collisionPushBackVelocity])
+    }, [collisionCheckIteration, capsuleRadius, collisionPushBackThreshold, collisionPushBackDamping, collisionPushBackVelocity, debug]);
 
     /**
      * Handle character floating response function
      * Also check if character is on ground
      */
-    const handleFloatingResponse = useCallback((staticMeshesArray: THREE.Mesh[], jump: boolean, delta: number) => {
+    const handleFloatingResponse = useCallback((colliderMeshesArray: THREE.Mesh[], jump: boolean, delta: number) => {
+        // Exit if colliderMeshesArray is not ready
+        if (colliderMeshesArray.length === 0) return
+
         /**
          * Floating sensor check if character is on ground
          */
         // Reset float sensor hit global info
         globalMinDistance.current = Infinity;
         globalClosestPoint.current.set(0, 0, 0);
-        for (const mesh of staticMeshesArray) {
+        for (const mesh of colliderMeshesArray) {
             // Early exit if map is not visible and if map geometry boundsTree is not ready
-            if (!mesh.visible || !mesh.geometry.boundsTree) continue;
+            if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) continue;
 
             // Invert the collider matrix from world → local space
             floatInvertMatrix.current.copy(mesh.matrixWorld).invert();
+            floatNormalInverseMatrix.current.getNormalMatrix(floatInvertMatrix.current);
             // Get collider matrix normal for later transform local → world space
             floatNormalMatrix.current.getNormalMatrix(mesh.matrixWorld)
 
@@ -617,7 +608,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                 // If intersects with float sensor bbox, deeply check collision with float sensor segment
                 intersectsTriangle: tri => {
                     tri.closestPointToSegment(localFloatSensorSegment.current, triHitPoint.current, segHitPoint.current);
-                    localUpAxis.current.copy(upAxis).applyMatrix3(floatNormalMatrix.current).normalize();
+                    localUpAxis.current.copy(upAxis).applyMatrix3(floatNormalInverseMatrix.current).normalize();
                     const horizontalDistance = closestPointHorizontalDis.current.subVectors(localFloatSensorSegment.current.start, triHitPoint.current).projectOnPlane(localUpAxis.current).lengthSq();
                     const verticalDistance = closestPointVerticalDis.current.subVectors(localFloatSensorSegment.current.start, triHitPoint.current).projectOnVector(localUpAxis.current).lengthSq();
 
@@ -633,7 +624,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                         triHitPoint.current.applyMatrix4(mesh.matrixWorld);
 
                         // Store the closest and within max slope point
-                        const slopeAngle = triNormal.current.angleTo(localUpAxis.current);
+                        const slopeAngle = triNormal.current.angleTo(upAxis);
                         if (verticalDistance < localMinDistance.current && slopeAngle < maxSlope) {
                             localMinDistance.current = verticalDistance;
                             localClosestPoint.current.copy(triHitPoint.current);
@@ -655,8 +646,8 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                 floatHitNormal.current.copy(localHitNormal.current);
                 currSlopeAngle.current = floatHitNormal.current.angleTo(upAxis);
                 isOverMaxSlope.current = currSlopeAngle.current > maxSlope;
-                floatHitMesh.current = mesh;
                 groundFriction.current = mesh.userData.friction;
+                floatHitMesh.current = mesh;
             }
         }
 
@@ -677,114 +668,91 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                 // Apply force to character's velocity (force * dt / mass)
                 if (!jump) currentLinVel.current.addScaledVector(upAxis, floatForce * delta / mass)
             }
-        }
-        else {
+        } else {
             isOnGround.current = false
             currSlopeAngle.current = 0
         }
     }, [floatSensorRadius, capsuleRadius, floatHeight, floatPullBackHeight, upAxis, maxSlope, floatSpringK, floatDampingC, mass])
 
     /**
-     * 
+     * Update character position/rotation with moving platform
      */
-    // const handleFloatingResponse = useCallback((staticMeshesArray: THREE.Mesh[], jump: boolean, delta: number) => {
-    //     /**
-    //      * Floating sensor check if character is on ground
-    //      */
-    //     // Reset float sensor hit global info
-    //     globalMinDistance.current = Infinity;
-    //     globalClosestPoint.current.set(0, 0, 0);
-    //     for (const mesh of staticMeshesArray) {
-    //         // Early exit if map is not visible and if map geometry boundsTree is not ready
-    //         if (!mesh.visible || !mesh.geometry.boundsTree) continue;
+    const updateCharacterWithPlatform = useCallback(() => {
+        // Exit if characterGroupRef or characterModelRef is not ready
+        if (!characterGroupRef.current || !characterModelRef.current) return
 
-    //         // Reset float sensor hit point info
-    //         // currSlopeAngle.current = 0;
-    //         localMinDistance.current = Infinity;
-    //         localClosestPoint.current.set(0, 0, 0);
-    //         // triHitPoint.current.set(0, 0, 0)
-    //         // segHitPoint.current.set(0, 0, 0)
-    //         // floatHitVec.current.set(0, 0, 0)
-    //         // localHitNormal.current.set(0, 0, 0)
-    //         // triNormal.current.set(0, 0, 0)
+        /**
+         * Clear platform offset if grounded on static collider
+         */
+        if (isOnGround.current &&
+            floatHitMesh.current &&
+            floatHitMesh.current.userData.type === "STATIC" &&
+            totalPlatformDeltaPos.current.lengthSq() > 0
+        ) {
+            totalPlatformDeltaPos.current.set(0, 0, 0);
+            isOnMovingPlatform.current = false
+            return;
+        }
 
-    //         // Check if floating ray hits any map faces, 
-    //         // and find the closest point to sensor start point
-    //         const startPoint = floatSensorSegment.current.start
-    //         mesh.geometry.boundsTree.shapecast({
-    //             // If not intersects with float sensor bbox, just stop entire shapecast                
-    //             intersectsBounds: box => box.intersectsBox(floatSensorBbox.current),
-    //             // If intersects with float sensor bbox, deeply check collision with float sensor segment
-    //             intersectsTriangle: tri => {
-    //                 tri.closestPointToSegment(floatSensorSegment.current, triHitPoint.current, segHitPoint.current);
-    //                 const horizontalDistance = closestPointHorizontalDis.current.subVectors(startPoint, triHitPoint.current).projectOnPlane(upAxis).lengthSq()
-    //                 const verticalDistance = closestPointVerticalDis.current.subVectors(startPoint, triHitPoint.current).projectOnVector(upAxis).lengthSq()
+        /**
+         * Apply platform inertia motion when character just left a platform
+         */
+        if (!isOnGround.current && totalPlatformDeltaPos.current.lengthSq() > 0) {
+            characterGroupRef.current.position.add(totalPlatformDeltaPos.current);
+        }
 
-    //                 // Only accept triangle hit if inside sensor range
-    //                 if (horizontalDistance < floatSensorRadius * floatSensorRadius && verticalDistance < (capsuleRadius + floatHeight + floatPullBackHeight) ** 2) {
-    //                     tri.getNormal(triNormal.current)
-    //                     // Store the closest and within max slope point
-    //                     if (verticalDistance < localMinDistance.current && triNormal.current.angleTo(upAxis) < maxSlope) {
-    //                         localMinDistance.current = verticalDistance;
-    //                         localClosestPoint.current.copy(triHitPoint.current);
-    //                         tri.getNormal(localHitNormal.current);
-    //                     }
-    //                 }
-    //             }
-    //         })
+        /**
+         * Only update when character is on KINEMATIC platform
+         */
+        if (!isOnGround.current ||
+            !floatHitMesh.current ||
+            floatHitMesh.current.userData.type !== "KINEMATIC"
+        ) return;
 
-    //         /**
-    //          * bvh.shapecast might hit multiple faces, 
-    //          * and only the closest one return a valid number, 
-    //          * other faces would return infinity.
-    //          * Store only the closest point to globalMinDistance/globalClosestPoint
-    //          */
-    //         if (localMinDistance.current < globalMinDistance.current) {
-    //             globalMinDistance.current = localMinDistance.current;
-    //             globalClosestPoint.current.copy(localClosestPoint.current);
-    //             floatHitNormal.current.copy(localHitNormal.current);
-    //             currSlopeAngle.current = floatHitNormal.current.angleTo(upAxis)
-    //             isOverMaxSlope.current = currSlopeAngle.current > maxSlope
-    //             // isOverSteepSlope.current = currSlopeAngle.current > steepSlopeThreshold
-    //             floatHitMesh.current = mesh
-    //             groundFriction.current = mesh.userData.friction
-    //         }
-    //     }
+        // Retrieve platform information from globle store
+        const center = floatHitMesh.current.userData.center as THREE.Vector3;
+        const deltaPos = floatHitMesh.current.userData.deltaPos as THREE.Vector3;
+        const deltaQuat = floatHitMesh.current.userData.deltaQuat as THREE.Quaternion;
+        const rotationAxis = floatHitMesh.current.userData.rotationAxis as THREE.Vector3;
+        const rotationAngle = floatHitMesh.current.userData.rotationAngle as number;
+        isOnMovingPlatform.current = true
 
-    //     // If globalMinDistance.current is valid, sensor hits something. 
-    //     // Apply proper floating force to float character
-    //     if (globalMinDistance.current < Infinity) {
-    //         // Check character is on ground and if not over max slope
-    //         if (!isOverMaxSlope.current) {
-    //             isOnGround.current = true
-    //             isFalling.current = false
-    //             // Calculate spring force
-    //             floatHitVec.current.subVectors(floatSensorSegment.current.start, globalClosestPoint.current)
-    //             const springForce = floatSpringK * (floatHeight + capsuleRadius - floatHitVec.current.dot(upAxis));
-    //             // Calculate damping force
-    //             const dampingForce = floatDampingC * currentLinVel.current.dot(upAxis);
-    //             // Total float force
-    //             const floatForce = springForce - dampingForce;
-    //             // Apply force to character's velocity (force * dt / mass)
-    //             if (!jump) currentLinVel.current.addScaledVector(upAxis, floatForce * delta / mass)
-    //         }
-    //     }
-    //     else {
-    //         isOnGround.current = false
-    //         currSlopeAngle.current = 0
-    //     }
-    // }, [floatSensorRadius, capsuleRadius, floatHeight, floatPullBackHeight, upAxis, maxSlope, floatSpringK, floatDampingC, mass])
+        /**
+         * Update character group linear/rotation position with platform
+         */
+        // Compute relative position from platform center to hit point before rotation
+        relativeHitPoint.current.copy(globalClosestPoint.current).sub(center);
+        // Apply rotation to this relative vector and get delta movement due to rotation
+        rotationDeltaPos.current.copy(relativeHitPoint.current).applyQuaternion(deltaQuat).sub(relativeHitPoint.current);
+        // Combine rotation delta and translation delta pos and apply to character
+        totalPlatformDeltaPos.current.copy(rotationDeltaPos.current).add(deltaPos);
+        characterGroupRef.current.position.add(totalPlatformDeltaPos.current);
+
+        /**
+         * Update character model rotation if platform is rotate along up-axis
+         */
+        if (rotationAngle > 1e-6) {
+            // Check if rotation is primarily around upAxis
+            const projection = rotationAxis.dot(upAxis);
+            if (Math.abs(projection) > 0.9) {
+                yawQuaternion.current.setFromAxisAngle(upAxis, rotationAngle * projection)
+                characterModelRef.current.quaternion.premultiply(yawQuaternion.current);
+            }
+        }
+    }, [upAxis])
 
     /**
      * Update character status for exporting
      */
     const updateCharacterStatus = useCallback(() => {
-        characterGroupRef.current?.getWorldPosition(characterStatus.position)
-        characterGroupRef.current?.getWorldQuaternion(characterStatus.quaternion)
+        if (!characterGroupRef.current) return
+        characterGroupRef.current.getWorldPosition(characterStatus.position)
+        characterGroupRef.current.getWorldQuaternion(characterStatus.quaternion)
         characterStatus.linvel.copy(currentLinVel.current)
         characterStatus.inputDir.copy(inputDir.current)
         characterStatus.movingDir.copy(movingDir.current)
         characterStatus.isOnGround = isOnGround.current
+        characterStatus.isOnMovingPlatform = isOnMovingPlatform.current
     }, [])
 
     /**
@@ -826,9 +794,9 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     useFrame((state, delta) => {
         /**
          * Global store values
-         * Getting static collider props array from store
+         * Getting all collider array from store
          */
-        const staticMeshesArray = useEcctrlStore.getState().staticMeshesArray;
+        const colliderMeshesArray = useEcctrlStore.getState().colliderMeshesArray;
 
         /**
          * Get camera azimuthal angle
@@ -849,44 +817,46 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
         // Character jump input
         if (jump && isOnGround.current) currentLinVel.current.y = jumpVel
         // Update character moving diretion
-        if (currentLinVel.current.lengthSq() > 0) movingDir.current.copy(currentLinVel.current).normalize()
+        movingDir.current.copy(currentLinVel.current).normalize()
 
         /**
-         * Apply custom gravity to character current velocity
+         * Check if character is sleeping,
+         * If so, pause functions to save performance
          */
-        if (enableGravity && !isOnGround.current) applyGravity(delta)
+        checkCharacterSleep(jump, delta)
+        if (!isSleeping.current) {
+            /**
+             * Apply custom gravity to character current velocity
+             */
+            if (enableGravity && !isOnGround.current) applyGravity(delta)
 
-        /**
-         * Update collider segement/bbox to new position for collision check
-         */
-        if (currentLinVel.current.lengthSq() > 0 && characterGroupRef.current)
+            /**
+             * Update collider segement/bbox to new position for collision check
+             */
             updateSegmentBBox()
 
-        /**
-         * Handle character collision response
-         * Apply contact normal and contact depth to character current velocity
-         */
-        // if (currentLinVel.current.lengthSq() > 0 && staticMeshesArray.length !== 0) 
-        if (staticMeshesArray.length !== 0)
-            handleCollisionResponse(staticMeshesArray, delta)
+            /**
+             * Handle character collision response
+             * Apply contact normal and contact depth to character current velocity
+             */
+            handleCollisionResponse(colliderMeshesArray, delta)
 
-        /**
-         * Handle character floating response
-         */
-        // if (currentLinVel.current.lengthSq() > 0 && staticMeshesArray.length !== 0) 
-        if (staticMeshesArray.length !== 0)
-            handleFloatingResponse(staticMeshesArray, jump, delta)
+            /**
+             * Handle character floating response
+             */
+            handleFloatingResponse(colliderMeshesArray, jump, delta)
 
-        /**
-         * Limit minimum velocity
-         */
-        // if (currentLinVel.current.lengthSq() < 1e-4) currentLinVel.current.set(0, 0, 0)
+            /**
+             * Update character position and rotation with moving platform
+             */
+            updateCharacterWithPlatform()
 
-        /**
-         * Apply sum up velocity to move character position
-         */
-        if (characterGroupRef.current)
-            characterGroupRef.current.position.addScaledVector(currentLinVel.current, delta)
+            /**
+             * Apply sum-up velocity to move character position
+             */
+            if (characterGroupRef.current)
+                characterGroupRef.current.position.addScaledVector(currentLinVel.current, delta)
+        }
 
         /**
          * Update character status for exporting
@@ -982,4 +952,5 @@ export const characterStatus = {
     inputDir: new THREE.Vector3(),
     movingDir: new THREE.Vector3(),
     isOnGround: false,
+    isOnMovingPlatform: false,
 };

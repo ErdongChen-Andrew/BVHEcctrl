@@ -3,7 +3,7 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 import React, { useEffect, useRef, useMemo, useState, type ReactNode, forwardRef, type ForwardedRef, type RefObject, type JSX } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Helper, Merged, PivotControls, TransformControls, useBVH, useHelper } from "@react-three/drei";
-import { MeshBVHHelper, StaticGeometryGenerator, MeshBVH, computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from "three-mesh-bvh";
+import { MeshBVHHelper, StaticGeometryGenerator, MeshBVH, computeBoundsTree, disposeBoundsTree, acceleratedRaycast, SAH, type SplitStrategy } from "three-mesh-bvh";
 import { useControls } from "leva";
 import { useEcctrlStore } from "./stores/useEcctrlStore";
 
@@ -13,6 +13,15 @@ export interface StaticColliderProps extends Omit<React.ComponentProps<'group'>,
     debugVisualizeDepth?: number;
     restitution?: number;
     friction?: number;
+    excludeFloatHit?: boolean;
+    BVHOptions?: {
+        strategy?: SplitStrategy
+        verbose?: boolean
+        setBoundingBox?: boolean
+        maxDepth?: number
+        maxLeafTris?: number
+        indirect?: boolean
+    }
 };
 
 const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
@@ -21,40 +30,60 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
     debugVisualizeDepth = 10,
     restitution = 0.05,
     friction = 0.8,
+    excludeFloatHit = false,
+    BVHOptions = {
+        strategy: SAH,
+        verbose: false,
+        setBoundingBox: true,
+        maxDepth: 40,
+        maxLeafTris: 10,
+        indirect: false,
+    },
     ...props
 }, ref) => {
     /**
-     * Initialize
+     * Initialize setups
      */
     const { scene, gl } = useThree()
     const mergedMesh = useRef<THREE.Mesh | null>(null)
     const bvhHelper = useRef<MeshBVHHelper | null>(null)
     const colliderRef = (ref as RefObject<THREE.Group>) ?? useRef<THREE.Group | null>(null);
 
+    /**
+     * Generate merged static geometry and BVH tree for collision detection
+     */
     useEffect(() => {
+        // Exit if colliderRef.current if not ready
         if (!colliderRef.current) return;
-
+        // Recalculate the world matrix of the object and descendants on the current frame
         colliderRef.current.updateMatrixWorld(true);
 
+        // Retrieve meshes from colliderRef.current
         const meshes: THREE.Mesh[] = [];
-        colliderRef.current.traverse(obj => {
-            if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh);
-        });
+        colliderRef.current.traverse(obj => { if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh); });
 
+        // Generate static geometry from mesh array
         const staticGenerator = new StaticGeometryGenerator(meshes);
         staticGenerator.attributes = ['position', 'normal'];
         const mergedGeometry = staticGenerator.generate();
-        mergedGeometry.boundsTree = new MeshBVH(mergedGeometry);
+
+        // Create boundsTree and mesh from static geometry 
+        mergedGeometry.computeBoundsTree = computeBoundsTree
+        mergedGeometry.disposeBoundsTree = disposeBoundsTree
+        mergedGeometry.computeBoundsTree(BVHOptions)
         mergedMesh.current = new THREE.Mesh(mergedGeometry)
+        // Preset merged mesh user data
+        mergedMesh.current.userData = { restitution, friction, excludeFloatHit, type: "STATIC" };
 
-        mergedMesh.current.userData.restitution = restitution
-        mergedMesh.current.userData.friction = friction
+        // Save the merged mesh to globle store
+        // Character can retrieve and collider with merged mesh later
+        useEcctrlStore.getState().setColliderMeshesArray(mergedMesh.current)
 
-        useEcctrlStore.getState().setStaticMeshesArray(mergedMesh.current)
-
+        // Clean up geometry/boundsTree/mesh/bvhHelper 
         return () => {
             if (mergedMesh.current) {
-                useEcctrlStore.getState().removeStaticMesh(mergedMesh.current)
+                useEcctrlStore.getState().removeColliderMesh(mergedMesh.current)
+                mergedGeometry.disposeBoundsTree()
                 mergedGeometry.dispose()
                 mergedMesh.current = null
             }
@@ -66,54 +95,25 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
         };
     }, [])
 
-    // useEffect(() => {
-    //     const geometries: THREE.BufferGeometry[] = []
-    //     const tempObj = new THREE.Object3D()
-
-    //     colliderRef.current.updateMatrixWorld(true)
-
-    //     colliderRef.current.traverse(obj => {
-    //         if ((obj as THREE.InstancedMesh).isInstancedMesh) {
-    //             const instanced = obj as THREE.InstancedMesh
-    //             const baseMatrix = obj.matrixWorld.clone()
-
-    //             for (let i = 0; i < instanced.count; i++) {
-    //                 const instanceMatrix = new THREE.Matrix4()
-    //                 instanced.getMatrixAt(i, instanceMatrix)
-
-    //                 const worldMatrix = new THREE.Matrix4().multiplyMatrices(baseMatrix, instanceMatrix)
-    //                 const transformedGeometry = instanced.geometry.clone()
-    //                 transformedGeometry.applyMatrix4(worldMatrix)
-
-    //                 geometries.push(transformedGeometry)
-    //             }
-    //         } else if ((obj as THREE.Mesh).isMesh) {
-    //             const mesh = obj as THREE.Mesh
-    //             const geo = mesh.geometry.clone()
-    //             // geo.applyMatrix4(mesh.matrixWorld)
-    //             geometries.push(geo)
-    //         }
-    //     })
-
-    //     const mergedGeometry = BufferGeometryUtils.mergeGeometries(geometries, false)
-    //     mergedGeometry.boundsTree = new MeshBVH(mergedGeometry)
-    //     mergedMesh.current = new THREE.Mesh(mergedGeometry)
-    //     mergedMesh.current.userData.friction = friction
-    //     mergedMesh.current.userData.restitution = restitution
-    //     useEcctrlStore.getState().setStaticMeshesArray(mergedMesh.current)
-    // }, [])
-
+    /**
+     * Update merged mesh properties and user data
+     */
     useEffect(() => {
         if (mergedMesh.current) {
             mergedMesh.current.visible = props.visible ?? true
             mergedMesh.current.userData.friction = friction
             mergedMesh.current.userData.restitution = restitution
+            mergedMesh.current.userData.excludeFloatHit = excludeFloatHit
         }
-    }, [props.visible, friction, restitution])
+    }, [props.visible, friction, restitution, excludeFloatHit])
 
-    // Debug helper setup
+    /**
+     * Update BVH debug helper
+     */
     useEffect(() => {
         if (mergedMesh.current) {
+            // If bvhHelper.current exist, only targgle visible
+            // Else create bvhHelper from mergedMesh.current
             if (bvhHelper.current) {
                 bvhHelper.current.visible = debug
             } else {
@@ -123,61 +123,6 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
             }
         }
     }, [debug])
-
-    /**
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     */
-    const prevMatrix = useRef(new THREE.Matrix4());
-    const prevPosition = useRef(new THREE.Vector3());
-    const velocity = useRef(new THREE.Vector3());
-    useFrame((state, delta) => {
-        if (mergedMesh.current && colliderRef.current) {
-            // 1. Get current world position of collider
-            const currentPos = new THREE.Vector3();
-            colliderRef.current.getWorldPosition(currentPos);
-
-            // 2. Compute velocity: v = (current - previous) / delta
-            velocity.current
-                .copy(currentPos)
-                .sub(prevPosition.current)
-                .divideScalar(delta);
-
-            // 3. Save current position for next frame
-            prevPosition.current.copy(currentPos);
-
-            // 4. Transform mergedMesh to match colliderRef
-            mergedMesh.current.matrix.copy(colliderRef.current.matrixWorld);
-            mergedMesh.current.matrix.decompose(
-                mergedMesh.current.position,
-                mergedMesh.current.quaternion,
-                mergedMesh.current.scale
-            );
-            mergedMesh.current.updateMatrixWorld(true);
-
-            // 5. Optional: assign velocity to mergedMesh for character to use
-            mergedMesh.current.userData.velocity = velocity.current.clone();
-        }
-    })
-    /**
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     * 
-     */
 
     return (
         <group ref={colliderRef} {...props} dispose={null}>

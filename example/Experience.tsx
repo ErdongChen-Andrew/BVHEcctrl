@@ -1,5 +1,5 @@
 import * as THREE from "three"
-import { Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls } from "@react-three/drei";
+import { Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls, useGLTF } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
 import Floor from "./Floor";
@@ -12,13 +12,22 @@ import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
 import BVHEcctrl, { characterStatus } from "../src/BVHEcctrl"
 import StaticCollider from "../src/StaticCollider"
+import KinematicCollider from "../src/KinematicCollider"
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
-import TestMap from "./TestMap";
+import StaticMap from "./StaticMap";
 import InstancedMap from "./InstancedMap";
 import { clamp } from "three/src/math/MathUtils.js";
+import LargePlatform from "./LargePlatform";
+import RotateBars from "./RotateBars";
+import SlideMap from "./SlideMap";
 
 export default function Experience() {
+  /**
+   * Load models
+   */
+  const testMapModel = useGLTF("/testMap.glb");
+
   /**
    * Debug settings
    */
@@ -27,6 +36,10 @@ export default function Experience() {
   const ecctrlRef = useRef<THREE.Group | null>(null)
   const characterModelRef = useRef<THREE.Group | null>(null)
   const kinematicCollderRef = useRef<THREE.Group | null>(null)
+  const kinematicPlatformRef001 = useRef<THREE.Group | null>(null)
+  const kinematicPlatformRef002 = useRef<THREE.Group | null>(null)
+  const kinematicPlatformRef003 = useRef<THREE.Group | null>(null)
+  const kinematicBarRef = useRef<THREE.Group | null>(null)
   const EcctrlDebugSettings = useControls("Ecctrl Debug", {
     EcctrlDebug: false,
     Physics: folder({
@@ -55,15 +68,16 @@ export default function Experience() {
     }, { collapsed: true }),
     Collision: folder({
       collisionCheckIteration: { value: 3, min: 1, max: 10, step: 1 },
-      collisionPushBackVelocity: { value: 8, min: 0, max: 50, step: 0.1 },
-      collisionPushBackDamping: { value: 0.5, min: 0, max: 1, step: 0.05 },
-      collisionPushBackThreshold: { value: 1e-5, min: 0, max: 1, step: 0.01 },
+      collisionPushBackVelocity: { value: 3, min: 0, max: 50, step: 0.1 },
+      collisionPushBackDamping: { value: 0.01, min: 0, max: 1, step: 0.05 },
+      collisionPushBackThreshold: { value: 0.001, min: 0, max: 1, step: 0.01 },
     }, { collapsed: true }),
   })
-  const EcctrlMapDebugSettings = useControls("MAp Debug", {
+  const EcctrlMapDebugSettings = useControls("Map Debug", {
     MapDebug: false,
     Map: folder({
       visible: true,
+      excludeFloatHit: false,
       friction: { value: 0.8, min: 0, max: 1, step: 0.01 },
       restitution: { value: 0.05, min: 0, max: 1, step: 0.01 },
     }, { collapsed: true }),
@@ -76,7 +90,7 @@ export default function Experience() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPausedPhysics(false);
-    }, 1000);
+    }, 1500);
 
     return () => clearTimeout(timeout);
   }, []);
@@ -108,7 +122,7 @@ export default function Experience() {
    * Initialize character facing direction
    */
   // useEffect(() => {
-  //   characterModelRef.current?.parent?.rotateY(1)
+  // characterModelRef.current?.parent?.rotateY(1)
   // }, [])
 
   /**
@@ -134,6 +148,22 @@ export default function Experience() {
     }
   }
 
+  /**
+   * Initialize kinematic colliders' position/rotation
+   */
+  useEffect(() => {
+    if (kinematicPlatformRef001.current)
+      kinematicPlatformRef001.current.position.z = 15
+    if (kinematicPlatformRef002.current)
+      kinematicPlatformRef002.current.position.z = 15
+    if (kinematicPlatformRef003.current)
+      kinematicPlatformRef003.current.position.z = 15
+    if (kinematicBarRef.current) {
+      kinematicBarRef.current.position.y = 5
+      kinematicBarRef.current.position.z = 22
+    }
+  }, [])
+
   useFrame((state) => {
     // For orbit control to follow character
     if (camControlRef.current && ecctrlRef.current) {
@@ -142,14 +172,21 @@ export default function Experience() {
       state.camera.position.add(ecctrlRef.current.position)
     }
 
+    // For pointer lock control to follow character
     // if (camControlRef.current && ecctrlRef.current) {
     //   state.camera.position.copy(ecctrlRef.current.position)
     // }
 
-    if (kinematicCollderRef.current) {
-      kinematicCollderRef.current.position.z = clamp(Math.sin(state.clock.elapsedTime), -2, 3)
-      // kinematicCollderRef.current.rotation.y = state.clock.elapsedTime
+    // Animate kinematic platform
+    if (kinematicPlatformRef001.current)
+      kinematicPlatformRef001.current.rotation.y = state.clock.elapsedTime * 0.5
+    if (kinematicPlatformRef002.current)
+      kinematicPlatformRef002.current.position.x = 5 * Math.sin(state.clock.elapsedTime * 0.5) + 10
+    if (kinematicPlatformRef003.current) {
+      kinematicPlatformRef003.current.rotation.y = state.clock.elapsedTime * 0.5
+      kinematicPlatformRef003.current.position.x = 5 * Math.sin(state.clock.elapsedTime * 0.5) - 10
     }
+    if (kinematicBarRef.current) kinematicBarRef.current.rotation.z = state.clock.elapsedTime * 0.2
   })
 
   return (
@@ -167,14 +204,6 @@ export default function Experience() {
         makeDefault
       />
       {/* <PointerLockControls ref={camControlRef} makeDefault/> */}
-
-      {/* <Grid
-        args={[300, 300]}
-        sectionColor={"lightgray"}
-        cellColor={"gray"}
-        position={[0, -0.99, 0]}
-        userData={{ camExcludeCollision: true }} // this won't be collide by camera ray
-      /> */}
 
       <Lights />
 
@@ -217,17 +246,6 @@ export default function Experience() {
         <Floor position={[0, -6.5, 0]} />
       </StaticCollider> */}
 
-      {/* <StaticCollider >
-        <Plaza />
-      </StaticCollider> */}
-
-      <StaticCollider
-        debug={EcctrlMapDebugSettings.MapDebug}
-        {...EcctrlMapDebugSettings}
-      >
-        <TestMap position={[0, -3, 0]} />
-      </StaticCollider>
-
       {/* Stress test */}
       {/* <StaticCollider debug>
         <InstancedMap />
@@ -240,13 +258,33 @@ export default function Experience() {
         </group>
       </StaticCollider> */}
 
-      {/* Moving Platform */}
-      <StaticCollider ref={kinematicCollderRef} debug={EcctrlMapDebugSettings.MapDebug}>
-        <mesh castShadow receiveShadow position={[0, -2.5, 0]}>
-          <boxGeometry args={[3, 0.2, 3]} />
-          <meshStandardMaterial />
-        </mesh>
+      {/* Static Collider */}
+      <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
+        <StaticMap model={testMapModel} position={[0, -3, 0]} />
       </StaticCollider>
+
+      <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} excludeFloatHit={true}>
+        <SlideMap model={testMapModel} position={[0, 5, 22]} />
+      </StaticCollider>
+
+      {/* Moving Platform */}
+      <KinematicCollider ref={kinematicPlatformRef001} debug={EcctrlMapDebugSettings.MapDebug}>
+        <LargePlatform model={testMapModel} position={[0, -2.5, 0]} />
+      </KinematicCollider>
+
+      <KinematicCollider ref={kinematicPlatformRef002} debug={EcctrlMapDebugSettings.MapDebug}>
+        <LargePlatform model={testMapModel} position={[0, -2.5, 0]} />
+      </KinematicCollider>
+
+      <KinematicCollider ref={kinematicPlatformRef003} debug={EcctrlMapDebugSettings.MapDebug}>
+        <LargePlatform model={testMapModel} position={[0, -2.5, 0]} />
+      </KinematicCollider>
+
+      <KinematicCollider ref={kinematicBarRef} debug={EcctrlMapDebugSettings.MapDebug}>
+        <RotateBars model={testMapModel} />
+      </KinematicCollider>
     </>
   );
 }
+
+useGLTF.preload("/testMap.glb");
