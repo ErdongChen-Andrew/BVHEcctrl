@@ -1,3 +1,4 @@
+import { Outlines } from "@react-three/drei";
 import * as THREE from "three";
 
 export default function StaticMap(props) {

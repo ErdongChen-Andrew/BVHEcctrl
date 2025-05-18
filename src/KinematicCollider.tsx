@@ -1,3 +1,10 @@
+/*!
+ * BVHEcctrl
+ * https://github.com/ErdongChen-Andrew/BVHEcctrl
+ * (c) 2025 @ErdongChen-Andrew
+ * Released under the MIT License.
+ */
+
 import * as THREE from "three";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import React, { useEffect, useRef, useMemo, useState, type ReactNode, forwardRef, type ForwardedRef, type RefObject, type JSX } from "react";
@@ -55,15 +62,19 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
      */
     const prevPosition = useRef<THREE.Vector3>(new THREE.Vector3());
     const prevQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion());
+    const prevScale = useRef<THREE.Vector3>(new THREE.Vector3());
     const invertPrevQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
     const currentQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion());
+    const currentScale = useRef<THREE.Vector3>(new THREE.Vector3());
     const linearVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const angularVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const prevAngularVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const rotationAxis = useRef<THREE.Vector3>(new THREE.Vector3());
+    const scaleVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const deltaPos = useRef<THREE.Vector3>(new THREE.Vector3());
     const deltaQuat = useRef<THREE.Quaternion>(new THREE.Quaternion());
+    const deltaScale = useRef<THREE.Vector3>(new THREE.Vector3());
 
     /**
      * Generate merged static geometry and BVH tree for collision detection
@@ -76,7 +87,33 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
 
         // Retrieve meshes from colliderRef.current
         const meshes: THREE.Mesh[] = [];
-        colliderRef.current.traverse(obj => { if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh); });
+        // colliderRef.current.traverse(obj => { if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh); });
+        colliderRef.current.traverse(obj => {
+            if (!('isMesh' in obj && (obj as THREE.Mesh).isMesh)) return;
+            const mesh = obj as THREE.Mesh;
+            const geometry = mesh.geometry;
+
+            // Skip if missing required attributes
+            const position = geometry.getAttribute('position');
+            const normal = geometry.getAttribute('normal');
+            if (!position || !normal) return;
+            // Clone and convert to non-indexed
+            const geom = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+
+            // Strip everything except position and normal and apply matrix transform
+            const cleanGeom = new THREE.BufferGeometry();
+            cleanGeom.setAttribute('position', geom.getAttribute('position').clone());
+            cleanGeom.setAttribute('normal', geom.getAttribute('normal').clone());
+            cleanGeom.applyMatrix4(mesh.matrixWorld);
+
+            meshes.push(new THREE.Mesh(cleanGeom));
+        });
+
+        // Early exit if no compatible meshes
+        if (meshes.length === 0) {
+            console.warn('No compatible meshes found for static geometry generation.');
+            return;
+        }
 
         // Generate static geometry from mesh array
         const staticGenerator = new StaticGeometryGenerator(meshes);
@@ -88,6 +125,7 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         mergedGeometry.disposeBoundsTree = disposeBoundsTree
         mergedGeometry.computeBoundsTree(BVHOptions)
         mergedMesh.current = new THREE.Mesh(mergedGeometry)
+        mergedMesh.current.raycast = acceleratedRaycast
         // Update user data in merged mesh
         mergedMesh.current.userData = {
             restitution,
@@ -111,9 +149,24 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         return () => {
             if (mergedMesh.current) {
                 useEcctrlStore.getState().removeColliderMesh(mergedMesh.current)
-                mergedGeometry.disposeBoundsTree()
-                mergedGeometry.dispose()
+                mergedMesh.current.geometry.disposeBoundsTree?.();
+                mergedMesh.current.geometry.dispose();
+                if (Array.isArray(mergedMesh.current.material)) {
+                    mergedMesh.current.material.forEach(mat => mat.dispose());
+                } else {
+                    mergedMesh.current.material.dispose()
+                }
+                mergedMesh.current.raycast = THREE.Mesh.prototype.raycast
                 mergedMesh.current = null
+            }
+            for (const m of meshes) {
+                m.raycast = THREE.Mesh.prototype.raycast
+                m.geometry.dispose();
+                if (Array.isArray(m.material)) {
+                    m.material.forEach(mat => mat.dispose());
+                } else {
+                    m.material.dispose()
+                }
             }
             if (bvhHelper.current) {
                 scene.remove(bvhHelper.current);
@@ -198,22 +251,34 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
     /**
      * Update kinematic collider metrix for character collision and floating response
      */
+    const currMatrix = useRef(new THREE.Matrix4())
+    const prevMatrix = useRef(new THREE.Matrix4())
     useFrame((state, delta) => {
         if (!mergedMesh.current || !colliderRef.current) return
+        prevMatrix.current.copy(currMatrix.current)
         // Save previous transform
         prevPosition.current.copy(currentPosition.current)
         prevQuaternion.current.copy(currentQuaternion.current)
+        prevScale.current.copy(currentScale.current)
 
         // Update mergedMesh to follow collider
         colliderRef.current.updateMatrixWorld(true);
-        mergedMesh.current.position.setFromMatrixPosition(colliderRef.current.matrixWorld);
-        colliderRef.current.getWorldQuaternion(mergedMesh.current.quaternion);
+        // mergedMesh.current.position.setFromMatrixPosition(colliderRef.current.matrixWorld);
+        // colliderRef.current.getWorldQuaternion(mergedMesh.current.quaternion);
         // mergedMesh.current.scale.set(1, 1, 1);
-        // mergedMesh.current.updateMatrixWorld(true);
+        mergedMesh.current.matrix.copy(colliderRef.current.matrixWorld);
+        mergedMesh.current.matrix.decompose(
+            mergedMesh.current.position,
+            mergedMesh.current.quaternion,
+            mergedMesh.current.scale
+        );
+        mergedMesh.current.updateMatrixWorld(true);
 
         // Get new transform
         mergedMesh.current.getWorldPosition(currentPosition.current);
         mergedMesh.current.getWorldQuaternion(currentQuaternion.current);
+        mergedMesh.current.getWorldScale(currentScale.current);
+        currMatrix.current.copy(mergedMesh.current.matrixWorld)
 
         // Calculate linear velocity
         deltaPos.current.copy(currentPosition.current).sub(prevPosition.current)
@@ -248,6 +313,10 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         prevAngularVelocity.current.copy(angularVelocity.current);
         // angularVelocity.current.copy(rotationAxis.current).multiplyScalar(rotationAngle / delta);
 
+        // Calculate scale velocity
+        deltaScale.current.copy(currentScale.current).sub(prevScale.current)
+        scaleVelocity.current.copy(deltaScale.current).divideScalar(delta);
+
         // Update in userData
         mergedMesh.current.userData.deltaPos = deltaPos.current
         mergedMesh.current.userData.deltaQuat = deltaQuat.current
@@ -255,7 +324,14 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         mergedMesh.current.userData.rotationAngle = rotationAngle
         mergedMesh.current.userData.linearVelocity = linearVelocity.current;
         mergedMesh.current.userData.angularVelocity = angularVelocity.current;
+        mergedMesh.current.userData.scaleVelocity = scaleVelocity.current;
         mergedMesh.current.userData.center = currentPosition.current;
+
+        /**
+         * 
+         */
+        mergedMesh.current.userData.currMatrix = currMatrix.current;
+        mergedMesh.current.userData.prevMatrix = prevMatrix.current;
     });
 
     return (

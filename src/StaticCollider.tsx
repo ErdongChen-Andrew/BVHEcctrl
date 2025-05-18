@@ -1,11 +1,17 @@
+/*!
+ * BVHEcctrl
+ * https://github.com/ErdongChen-Andrew/BVHEcctrl
+ * (c) 2025 @ErdongChen-Andrew
+ * Released under the MIT License.
+ */
+
 import * as THREE from "three";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import React, { useEffect, useRef, useMemo, useState, type ReactNode, forwardRef, type ForwardedRef, type RefObject, type JSX } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
-import { Helper, Merged, PivotControls, TransformControls, useBVH, useHelper } from "@react-three/drei";
-import { MeshBVHHelper, StaticGeometryGenerator, MeshBVH, computeBoundsTree, disposeBoundsTree, acceleratedRaycast, SAH, type SplitStrategy } from "three-mesh-bvh";
-import { useControls } from "leva";
+import React, { useEffect, useRef, type ReactNode, forwardRef, type RefObject, } from "react";
+import { useThree } from "@react-three/fiber";
+import { MeshBVHHelper, StaticGeometryGenerator, computeBoundsTree, disposeBoundsTree, SAH, type SplitStrategy, acceleratedRaycast } from "three-mesh-bvh";
 import { useEcctrlStore } from "./stores/useEcctrlStore";
+import { useBVH } from "@react-three/drei";
 
 export interface StaticColliderProps extends Omit<React.ComponentProps<'group'>, 'ref'> {
     children?: ReactNode;
@@ -60,7 +66,33 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
 
         // Retrieve meshes from colliderRef.current
         const meshes: THREE.Mesh[] = [];
-        colliderRef.current.traverse(obj => { if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh); });
+        // colliderRef.current.traverse(obj => { if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh); });
+        colliderRef.current.traverse(obj => {
+            if (!('isMesh' in obj && (obj as THREE.Mesh).isMesh)) return;
+            const mesh = obj as THREE.Mesh;
+            const geometry = mesh.geometry;
+
+            // Skip if missing required attributes
+            const position = geometry.getAttribute('position');
+            const normal = geometry.getAttribute('normal');
+            if (!position || !normal) return;
+            // Clone and convert to non-indexed
+            const geom = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+
+            // Strip everything except position and normal and apply matrix transform
+            const cleanGeom = new THREE.BufferGeometry();
+            cleanGeom.setAttribute('position', geom.getAttribute('position').clone());
+            cleanGeom.setAttribute('normal', geom.getAttribute('normal').clone());
+            cleanGeom.applyMatrix4(mesh.matrixWorld);
+
+            meshes.push(new THREE.Mesh(cleanGeom));
+        });
+
+        // Early exit if no compatible meshes
+        if (meshes.length === 0) {
+            console.warn('No compatible meshes found for static geometry generation.');
+            return;
+        }
 
         // Generate static geometry from mesh array
         const staticGenerator = new StaticGeometryGenerator(meshes);
@@ -72,6 +104,7 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
         mergedGeometry.disposeBoundsTree = disposeBoundsTree
         mergedGeometry.computeBoundsTree(BVHOptions)
         mergedMesh.current = new THREE.Mesh(mergedGeometry)
+        mergedMesh.current.raycast = acceleratedRaycast
         // Preset merged mesh user data
         mergedMesh.current.userData = { restitution, friction, excludeFloatHit, type: "STATIC" };
 
@@ -83,9 +116,24 @@ const StaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
         return () => {
             if (mergedMesh.current) {
                 useEcctrlStore.getState().removeColliderMesh(mergedMesh.current)
-                mergedGeometry.disposeBoundsTree()
-                mergedGeometry.dispose()
+                mergedMesh.current.geometry.disposeBoundsTree?.();
+                mergedMesh.current.geometry.dispose();
+                if (Array.isArray(mergedMesh.current.material)) {
+                    mergedMesh.current.material.forEach(mat => mat.dispose());
+                } else {
+                    mergedMesh.current.material.dispose()
+                }
+                mergedMesh.current.raycast = THREE.Mesh.prototype.raycast
                 mergedMesh.current = null
+            }
+            for (const m of meshes) {
+                m.raycast = THREE.Mesh.prototype.raycast
+                m.geometry.dispose();
+                if (Array.isArray(m.material)) {
+                    m.material.forEach(mat => mat.dispose());
+                } else {
+                    m.material.dispose();
+                }
             }
             if (bvhHelper.current) {
                 scene.remove(bvhHelper.current);

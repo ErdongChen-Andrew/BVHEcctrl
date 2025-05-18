@@ -1,18 +1,19 @@
 import * as THREE from "three"
-import { Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls, useGLTF } from "@react-three/drei";
+import { CameraControls, Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls, useGLTF, type CameraControlsProps } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
 import Floor from "./Floor";
 import Lights from "./Lights";
 import Slopes from "./Slopes";
 import RoughPlane from "./RoughPlane";
-import { useControls, folder } from "leva";
+import { useControls, folder, button } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
 import BVHEcctrl, { characterStatus } from "../src/BVHEcctrl"
 import StaticCollider from "../src/StaticCollider"
 import KinematicCollider from "../src/KinematicCollider"
+import InstancedStaticCollider from "../src/InstancedStaticCollider"
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
 import StaticMap from "./StaticMap";
@@ -21,17 +22,69 @@ import { clamp } from "three/src/math/MathUtils.js";
 import LargePlatform from "./LargePlatform";
 import RotateBars from "./RotateBars";
 import SlideMap from "./SlideMap";
+import { useEcctrlStore } from "../src/stores/useEcctrlStore";
+import HintzeHall from "./HintzeHall";
 
 export default function Experience() {
   /**
    * Load models
    */
   const testMapModel = useGLTF("/testMap.glb");
+  // Retrieve collider meshes from store
+  const colliderMeshesArray = useEcctrlStore((state) => state.colliderMeshesArray);
+
+  // const { scene } = useThree()
+  // useEffect(() => {
+  //   setTimeout(() => {
+  //     scene.traverse(obj => {
+  //       if (obj instanceof THREE.InstancedMesh && camControlRef.current) {
+  //         for (let i = 0; i < obj.count; i++) {
+  //           const tempMatrix = new THREE.Matrix4();
+  //           const pos = new THREE.Vector3()
+  //           const quat = new THREE.Quaternion()
+  //           const scale = new THREE.Vector3()
+  //           obj.getMatrixAt(i, tempMatrix);
+  //           tempMatrix.decompose(pos, quat, scale)
+  //           console.log(pos, quat, scale);
+  //         }
+  //         camControlRef.current.colliderMeshes = [obj];
+  //       }
+  //     })
+  //   }, 3000)
+
+  // }, [])
+  /**
+   * 
+   */
+  // useEffect(() => {
+  //   colliderMeshesArray.map(mesh => {
+  //     if (mesh instanceof THREE.InstancedMesh && camControlRef.current) {
+  //       const tempMatrix = new THREE.Matrix4();
+  //       const pos = new THREE.Vector3()
+  //       const quat = new THREE.Quaternion()
+  //       const scale = new THREE.Vector3()
+  //       mesh.getMatrixAt(2, tempMatrix);
+  //       tempMatrix.decompose(pos, quat, scale)
+  //       console.log(pos, quat, scale);
+
+  //       camControlRef.current.colliderMeshes = [mesh];
+  //     }
+  //   })
+  // }, [colliderMeshesArray])
+  /**
+   * 
+   */
+  // useEffect(() => {
+  //     if (camControlRef.current && colliderMeshesArray.length > 0) {
+  //       camControlRef.current.colliderMeshes = colliderMeshesArray;
+  //     }
+  // }, [colliderMeshesArray]);
 
   /**
-   * Debug settings
+   * Initialize setup
    */
-  const camControlRef = useRef<ThreeOrbitControls | null>(null)
+  // const camControlRef = useRef<ThreeOrbitControls | null>(null)
+  const camControlRef = useRef<CameraControls | null>(null)
   // const camControlRef = useRef<ThreePointerLockControls | null>(null)
   const ecctrlRef = useRef<THREE.Group | null>(null)
   const characterModelRef = useRef<THREE.Group | null>(null)
@@ -40,13 +93,26 @@ export default function Experience() {
   const kinematicPlatformRef002 = useRef<THREE.Group | null>(null)
   const kinematicPlatformRef003 = useRef<THREE.Group | null>(null)
   const kinematicBarRef = useRef<THREE.Group | null>(null)
+
+  /**
+   * Debug settings
+   */
   const EcctrlDebugSettings = useControls("Ecctrl Debug", {
+    CameraLock: button(() => { camControlRef.current?.lockPointer() }),
+    FirstPerson: button(() => { camControlRef.current?.dolly(camControlRef.current.distance - 0.02, true) }),
+    ResetPlayer: button(() => {
+      ecctrlRef.current?.position.set(0, 8, 22);
+      ecctrlRef.current?.userData.resetLinVel()
+    }),
     EcctrlDebug: false,
     Physics: folder({
+      paused: false,
+      delay: { value: 3, min: 0, max: 20, step: 0.1 },
       gravity: { value: 9.81, min: 0, max: 50, step: 0.1 },
       fallGravityFactor: { value: 4, min: 1, max: 10, step: 0.1 },
       maxFallSpeed: { value: 50, min: 1, max: 200, step: 1 },
       mass: { value: 1, min: 0.1, max: 10, step: 0.1 },
+      sleepTimeout: { value: 10, min: 0, max: 100, step: 0.1 },
     }, { collapsed: true }),
     Movement: folder({
       turnSpeed: { value: 15, min: 0, max: 100, step: 1 },
@@ -63,13 +129,13 @@ export default function Experience() {
       floatHeight: { value: 0.2, min: 0, max: 1, step: 0.01 },
       floatPullBackHeight: { value: 0.25, min: 0, max: 1, step: 0.01 },
       floatSensorRadius: { value: 0.12, min: 0, max: 1, step: 0.01 },
-      floatSpringK: { value: 320, min: 0, max: 1000, step: 10 },
-      floatDampingC: { value: 24, min: 0, max: 100, step: 1 },
+      floatSpringK: { value: 1600, min: 0, max: 3000, step: 10 },
+      floatDampingC: { value: 60, min: 0, max: 1000, step: 1 },
     }, { collapsed: true }),
     Collision: folder({
       collisionCheckIteration: { value: 3, min: 1, max: 10, step: 1 },
       collisionPushBackVelocity: { value: 3, min: 0, max: 50, step: 0.1 },
-      collisionPushBackDamping: { value: 0.01, min: 0, max: 1, step: 0.05 },
+      collisionPushBackDamping: { value: 0.1, min: 0, max: 1, step: 0.05 },
       collisionPushBackThreshold: { value: 0.001, min: 0, max: 1, step: 0.01 },
     }, { collapsed: true }),
   })
@@ -82,25 +148,6 @@ export default function Experience() {
       restitution: { value: 0.05, min: 0, max: 1, step: 0.01 },
     }, { collapsed: true }),
   })
-
-  /**
-   * Delay physics activate
-   */
-  const [pausedPhysics, setPausedPhysics] = useState(true);
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPausedPhysics(false);
-    }, 1500);
-
-    return () => clearTimeout(timeout);
-  }, []);
-
-  // useEffect(() => {
-  //   window.addEventListener("visibilitychange", setPausedPhysics(false));
-  //   return () => {
-  //     window.removeEventListener("visibilitychange", setPausedPhysics(false));
-  //   }
-  // }, [])
 
   /**
    * Keyboard control preset
@@ -128,7 +175,7 @@ export default function Experience() {
   /**
    * Show/hide map collider
    */
-  const [show, setShow] = useState(true)
+  // const [show, setShow] = useState(true)
   // useEffect(() => {
   //   setInterval(() => {
   //     setShow(prev => !prev)
@@ -153,9 +200,9 @@ export default function Experience() {
    */
   useEffect(() => {
     if (kinematicPlatformRef001.current)
-      kinematicPlatformRef001.current.position.z = 15
-    if (kinematicPlatformRef002.current)
-      kinematicPlatformRef002.current.position.z = 15
+      // kinematicPlatformRef001.current.position.z = 15
+      if (kinematicPlatformRef002.current)
+        kinematicPlatformRef002.current.position.z = 15
     if (kinematicPlatformRef003.current)
       kinematicPlatformRef003.current.position.z = 15
     if (kinematicBarRef.current) {
@@ -166,12 +213,37 @@ export default function Experience() {
 
   useFrame((state) => {
     // For orbit control to follow character
+    // if (camControlRef.current && ecctrlRef.current) {
+    //   state.camera.position.sub(camControlRef.current.target)
+    //   camControlRef.current.target.copy(ecctrlRef.current.position)
+    //   state.camera.position.add(ecctrlRef.current.position)
+    // }
+
+    /**
+     * 
+     */
+    // For camera control to follow character
     if (camControlRef.current && ecctrlRef.current) {
-      state.camera.position.sub(camControlRef.current.target)
-      camControlRef.current.target.copy(ecctrlRef.current.position)
-      state.camera.position.add(ecctrlRef.current.position)
+      camControlRef.current.moveTo(
+        ecctrlRef.current.position.x,
+        ecctrlRef.current.position.y + 0.3,
+        ecctrlRef.current.position.z,
+        true
+      )
+
+      // Hide character model if character too close
+      if (characterModelRef.current) {
+        if (camControlRef.current.distance < 0.7) {
+          characterModelRef.current.visible = false
+        } else {
+          characterModelRef.current.visible = true
+        }
+      }
     }
 
+    /**
+     * 
+     */
     // For pointer lock control to follow character
     // if (camControlRef.current && ecctrlRef.current) {
     //   state.camera.position.copy(ecctrlRef.current.position)
@@ -179,7 +251,9 @@ export default function Experience() {
 
     // Animate kinematic platform
     if (kinematicPlatformRef001.current)
-      kinematicPlatformRef001.current.rotation.y = state.clock.elapsedTime * 0.5
+      // kinematicPlatformRef001.current.rotation.y = state.clock.elapsedTime * 0.5
+      kinematicPlatformRef001.current.scale.x = 5*Math.sin(state.clock.elapsedTime*0.2) + 5
+
     if (kinematicPlatformRef002.current)
       kinematicPlatformRef002.current.position.x = 5 * Math.sin(state.clock.elapsedTime * 0.5) + 10
     if (kinematicPlatformRef003.current) {
@@ -197,12 +271,20 @@ export default function Experience() {
 
       <Stats />
 
-      <OrbitControls
+      {/* <OrbitControls
         ref={camControlRef}
         dampingFactor={0.1}
         enablePan={false}
         makeDefault
+      /> */}
+
+      <CameraControls
+        ref={camControlRef}
+        smoothTime={0.1}
+        // colliderMeshes={colliderMeshesArray}
+        makeDefault
       />
+
       {/* <PointerLockControls ref={camControlRef} makeDefault/> */}
 
       <Lights />
@@ -215,8 +297,8 @@ export default function Experience() {
         <BVHEcctrl
           ref={ecctrlRef}
           debug={EcctrlDebugSettings.EcctrlDebug}
-          enableGravity={!pausedPhysics}
           {...EcctrlDebugSettings}
+        // position={[0, 3, -13]}
         >
           {/* Character Model */}
           <group ref={characterModelRef}>
@@ -225,12 +307,7 @@ export default function Experience() {
         </BVHEcctrl>
       </KeyboardControls>
 
-      {/* Map */}
-      {/* {show && <StaticCollider>
-        <Map />
-      </StaticCollider>} */}
-
-      {/* <StaticCollider visible={show} position={[10,0,0]}>
+      {/* <StaticCollider position={[0, 0, 0]}>
         <Map />
       </StaticCollider> */}
 
@@ -239,25 +316,56 @@ export default function Experience() {
       </StaticCollider> */}
 
       {/* <StaticCollider >
-        <Slopes position={[0, -4, 0]} />
+        <Slopes position={[0, -3, 0]} />
       </StaticCollider> */}
 
-      {/* <StaticCollider >
-        <Floor position={[0, -6.5, 0]} />
-      </StaticCollider> */}
+      {/**
+       * 
+       * 
+       * 
+       * Stress test
+       * 
+       * 
+       * 
+       * 
+       */}
 
-      {/* Stress test */}
+      {/* Instanced mesh */}
+      <InstancedStaticCollider debug >
+        <InstancedMap />
+      </InstancedStaticCollider>
+
       {/* <StaticCollider debug>
         <InstancedMap />
       </StaticCollider> */}
+
+      {/* Cloned mesh */}
       {/* <StaticCollider>
         <group position={[0, 0, 0]}>
           {mapGrid.map((pos, idx) => (
             <Map key={`inner-${idx}`} position={pos} />
+            // <mesh key={`inner-${idx}`} position={[pos[0], -2, pos[2]]} >
+            //   <sphereGeometry args={[1]} />
+            // </mesh>
           ))}
         </group>
       </StaticCollider> */}
 
+      {/* Large model */}
+      {/* <StaticCollider>
+        <HintzeHall />
+      </StaticCollider> */}
+
+      {/**
+       * 
+       * 
+       * 
+       * Map models
+       * 
+       * 
+       * 
+       * 
+       */}
       {/* Static Collider */}
       <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
         <StaticMap model={testMapModel} position={[0, -3, 0]} />
@@ -269,7 +377,7 @@ export default function Experience() {
 
       {/* Moving Platform */}
       <KinematicCollider ref={kinematicPlatformRef001} debug={EcctrlMapDebugSettings.MapDebug}>
-        <LargePlatform model={testMapModel} position={[0, -2.5, 0]} />
+        <LargePlatform model={testMapModel} position={[3, -2.5, 0]} scale={[1,20,1]}/>
       </KinematicCollider>
 
       <KinematicCollider ref={kinematicPlatformRef002} debug={EcctrlMapDebugSettings.MapDebug}>

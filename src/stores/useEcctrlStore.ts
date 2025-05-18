@@ -1,3 +1,10 @@
+/*!
+ * BVHEcctrl
+ * https://github.com/ErdongChen-Andrew/BVHEcctrl
+ * (c) 2025 @ErdongChen-Andrew
+ * Released under the MIT License.
+ */
+
 import * as THREE from "three";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";

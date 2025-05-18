@@ -18,6 +18,7 @@ root.render(
         fov: 65,
         near: 0.1,
         far: 1000,
+        position: [0, -1, -5],
       }}
       gl={async (props) => {
         extend(THREE);
@@ -25,11 +26,6 @@ root.render(
         await renderer.init();
         return renderer;
       }}
-      // onPointerDown={(e) => {
-      //   if (e.pointerType === "mouse") {
-      //     e.target.requestPointerLock();
-      //   }
-      // }}
     >
       <Suspense fallback={null}>
         <Bvh firstHitOnly>
