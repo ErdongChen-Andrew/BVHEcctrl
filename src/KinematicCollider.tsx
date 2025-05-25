@@ -62,19 +62,15 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
      */
     const prevPosition = useRef<THREE.Vector3>(new THREE.Vector3());
     const prevQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion());
-    const prevScale = useRef<THREE.Vector3>(new THREE.Vector3());
     const invertPrevQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
     const currentQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion());
-    const currentScale = useRef<THREE.Vector3>(new THREE.Vector3());
     const linearVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const angularVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const prevAngularVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const rotationAxis = useRef<THREE.Vector3>(new THREE.Vector3());
-    const scaleVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const deltaPos = useRef<THREE.Vector3>(new THREE.Vector3());
     const deltaQuat = useRef<THREE.Quaternion>(new THREE.Quaternion());
-    const deltaScale = useRef<THREE.Vector3>(new THREE.Vector3());
 
     /**
      * Generate merged static geometry and BVH tree for collision detection
@@ -251,15 +247,11 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
     /**
      * Update kinematic collider metrix for character collision and floating response
      */
-    const currMatrix = useRef(new THREE.Matrix4())
-    const prevMatrix = useRef(new THREE.Matrix4())
     useFrame((state, delta) => {
         if (!mergedMesh.current || !colliderRef.current) return
-        prevMatrix.current.copy(currMatrix.current)
         // Save previous transform
         prevPosition.current.copy(currentPosition.current)
         prevQuaternion.current.copy(currentQuaternion.current)
-        prevScale.current.copy(currentScale.current)
 
         // Update mergedMesh to follow collider
         colliderRef.current.updateMatrixWorld(true);
@@ -277,8 +269,6 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         // Get new transform
         mergedMesh.current.getWorldPosition(currentPosition.current);
         mergedMesh.current.getWorldQuaternion(currentQuaternion.current);
-        mergedMesh.current.getWorldScale(currentScale.current);
-        currMatrix.current.copy(mergedMesh.current.matrixWorld)
 
         // Calculate linear velocity
         deltaPos.current.copy(currentPosition.current).sub(prevPosition.current)
@@ -313,10 +303,6 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         prevAngularVelocity.current.copy(angularVelocity.current);
         // angularVelocity.current.copy(rotationAxis.current).multiplyScalar(rotationAngle / delta);
 
-        // Calculate scale velocity
-        deltaScale.current.copy(currentScale.current).sub(prevScale.current)
-        scaleVelocity.current.copy(deltaScale.current).divideScalar(delta);
-
         // Update in userData
         mergedMesh.current.userData.deltaPos = deltaPos.current
         mergedMesh.current.userData.deltaQuat = deltaQuat.current
@@ -324,14 +310,7 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
         mergedMesh.current.userData.rotationAngle = rotationAngle
         mergedMesh.current.userData.linearVelocity = linearVelocity.current;
         mergedMesh.current.userData.angularVelocity = angularVelocity.current;
-        mergedMesh.current.userData.scaleVelocity = scaleVelocity.current;
         mergedMesh.current.userData.center = currentPosition.current;
-
-        /**
-         * 
-         */
-        mergedMesh.current.userData.currMatrix = currMatrix.current;
-        mergedMesh.current.userData.prevMatrix = prevMatrix.current;
     });
 
     return (

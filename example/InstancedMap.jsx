@@ -20,7 +20,7 @@ export default function InstancedMap(props) {
   const instancedMeshRef = useRef();
   const temp = new THREE.Object3D();
 
-  const count = 100;
+  const count = 20;
   const scale = 2; //0.09;
   const spacingX = 10;
   const spacingZ = 14.5;
@@ -73,9 +73,9 @@ export default function InstancedMap(props) {
       temp.position.set(pos[0], -2, pos[2]);
       temp.rotation.set(-Math.PI / 2, 0, 0); //-Math.PI / 2
       temp.scale.set(
-        scale *2 , //* (Math.random()+0.5),
-        scale , //* (Math.random()+0.5),
-        scale , //* (Math.random()+0.5)
+        scale * 2 * (Math.random() + 0.5),
+        scale * 2 * (Math.random() + 0.5),
+        scale / 2 //* (Math.random()+0.5)
       );
       // temp.scale.set(scale, scale, scale);
       temp.updateMatrix();

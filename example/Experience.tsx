@@ -33,53 +33,6 @@ export default function Experience() {
   // Retrieve collider meshes from store
   const colliderMeshesArray = useEcctrlStore((state) => state.colliderMeshesArray);
 
-  // const { scene } = useThree()
-  // useEffect(() => {
-  //   setTimeout(() => {
-  //     scene.traverse(obj => {
-  //       if (obj instanceof THREE.InstancedMesh && camControlRef.current) {
-  //         for (let i = 0; i < obj.count; i++) {
-  //           const tempMatrix = new THREE.Matrix4();
-  //           const pos = new THREE.Vector3()
-  //           const quat = new THREE.Quaternion()
-  //           const scale = new THREE.Vector3()
-  //           obj.getMatrixAt(i, tempMatrix);
-  //           tempMatrix.decompose(pos, quat, scale)
-  //           console.log(pos, quat, scale);
-  //         }
-  //         camControlRef.current.colliderMeshes = [obj];
-  //       }
-  //     })
-  //   }, 3000)
-
-  // }, [])
-  /**
-   * 
-   */
-  // useEffect(() => {
-  //   colliderMeshesArray.map(mesh => {
-  //     if (mesh instanceof THREE.InstancedMesh && camControlRef.current) {
-  //       const tempMatrix = new THREE.Matrix4();
-  //       const pos = new THREE.Vector3()
-  //       const quat = new THREE.Quaternion()
-  //       const scale = new THREE.Vector3()
-  //       mesh.getMatrixAt(2, tempMatrix);
-  //       tempMatrix.decompose(pos, quat, scale)
-  //       console.log(pos, quat, scale);
-
-  //       camControlRef.current.colliderMeshes = [mesh];
-  //     }
-  //   })
-  // }, [colliderMeshesArray])
-  /**
-   * 
-   */
-  // useEffect(() => {
-  //     if (camControlRef.current && colliderMeshesArray.length > 0) {
-  //       camControlRef.current.colliderMeshes = colliderMeshesArray;
-  //     }
-  // }, [colliderMeshesArray]);
-
   /**
    * Initialize setup
    */
@@ -119,7 +72,7 @@ export default function Experience() {
       maxWalkSpeed: { value: 3, min: 0, max: 10, step: 0.1 },
       maxRunSpeed: { value: 5, min: 0, max: 20, step: 0.1 },
       acceleration: { value: 26, min: 0, max: 100, step: 1 },
-      deceleration: { value: 10, min: 0, max: 50, step: 1 },
+      deceleration: { value: 15, min: 0, max: 50, step: 1 },
       counterVelFactor: { value: 1.5, min: 0, max: 5, step: 0.1 },
       airDragFactor: { value: 0.3, min: 0, max: 1, step: 0.05 },
       jumpVel: { value: 5, min: 0, max: 20, step: 0.1 },
@@ -200,9 +153,9 @@ export default function Experience() {
    */
   useEffect(() => {
     if (kinematicPlatformRef001.current)
-      // kinematicPlatformRef001.current.position.z = 15
-      if (kinematicPlatformRef002.current)
-        kinematicPlatformRef002.current.position.z = 15
+      kinematicPlatformRef001.current.position.z = 15
+    if (kinematicPlatformRef002.current)
+      kinematicPlatformRef002.current.position.z = 15
     if (kinematicPlatformRef003.current)
       kinematicPlatformRef003.current.position.z = 15
     if (kinematicBarRef.current) {
@@ -251,9 +204,7 @@ export default function Experience() {
 
     // Animate kinematic platform
     if (kinematicPlatformRef001.current)
-      // kinematicPlatformRef001.current.rotation.y = state.clock.elapsedTime * 0.5
-      kinematicPlatformRef001.current.scale.x = 5*Math.sin(state.clock.elapsedTime*0.2) + 5
-
+      kinematicPlatformRef001.current.rotation.y = state.clock.elapsedTime * 0.5
     if (kinematicPlatformRef002.current)
       kinematicPlatformRef002.current.position.x = 5 * Math.sin(state.clock.elapsedTime * 0.5) + 10
     if (kinematicPlatformRef003.current) {
@@ -281,7 +232,7 @@ export default function Experience() {
       <CameraControls
         ref={camControlRef}
         smoothTime={0.1}
-        // colliderMeshes={colliderMeshesArray}
+        colliderMeshes={colliderMeshesArray}
         makeDefault
       />
 
@@ -298,7 +249,8 @@ export default function Experience() {
           ref={ecctrlRef}
           debug={EcctrlDebugSettings.EcctrlDebug}
           {...EcctrlDebugSettings}
-        // position={[0, 3, -13]}
+        // spring: 900, damping: 30
+        // position={[1.35, 3, 0]}
         >
           {/* Character Model */}
           <group ref={characterModelRef}>
@@ -331,7 +283,7 @@ export default function Experience() {
        */}
 
       {/* Instanced mesh */}
-      <InstancedStaticCollider debug >
+      <InstancedStaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
         <InstancedMap />
       </InstancedStaticCollider>
 
@@ -377,7 +329,7 @@ export default function Experience() {
 
       {/* Moving Platform */}
       <KinematicCollider ref={kinematicPlatformRef001} debug={EcctrlMapDebugSettings.MapDebug}>
-        <LargePlatform model={testMapModel} position={[3, -2.5, 0]} scale={[1,20,1]}/>
+        <LargePlatform model={testMapModel} position={[0, -2.5, 0]} />
       </KinematicCollider>
 
       <KinematicCollider ref={kinematicPlatformRef002} debug={EcctrlMapDebugSettings.MapDebug}>
