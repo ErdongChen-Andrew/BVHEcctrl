@@ -452,7 +452,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
             //     counterVel.current.copy(currentLinVel.current).multiplyScalar(dot * counterVelFactor * friction).projectOnPlane(upAxis.current)
             //     // counterVel.current.clampLength(0, maxRunSpeed * counterVelFactor) // prevent overshoot
             //     wantToMoveVel.current.add(counterVel.current)
-            // }            
+            // }    
 
             // According to this formula: Δv = a * Δt
             // Find Δv which increase currentLinVel in every frame, until reach wantToMoveVel
@@ -557,7 +557,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
      */
     const collisionCheck = useCallback((mesh: THREE.Mesh, originMatrix: THREE.Matrix4, delta: number) => {
         // Early exit if map is not visible and if map geometry boundsTree is not ready
-        if (!mesh.visible || !mesh.geometry.boundsTree) return
+        if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeCollisionCheck) return
 
         // Decompose position/quaternion/scale from originMatrix
         originMatrix.decompose(contactTempPos.current, contactTempQuat.current, contactTempScale.current)
@@ -977,7 +977,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
         globalClosestPoint.current.set(0, 0, 0);
         for (const mesh of colliderMeshesArray) {
             // Early exit if map is not visible and if map geometry boundsTree is not ready
-            if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) continue;
+            // if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) continue;
 
             // Check floating hit for different meshes
             if (mesh instanceof THREE.InstancedMesh) {

@@ -24,6 +24,9 @@ import RotateBars from "./RotateBars";
 import SlideMap from "./SlideMap";
 import { useEcctrlStore } from "../src/stores/useEcctrlStore";
 import HintzeHall from "./HintzeHall";
+import InstancedSong from "./InstancedSong";
+import SongMap from "./SongMap";
+import LargeFloorMap from "./LargeFloorMap";
 
 export default function Experience() {
   /**
@@ -97,6 +100,7 @@ export default function Experience() {
     Map: folder({
       visible: true,
       excludeFloatHit: false,
+      excludeCollisionCheck: false,
       friction: { value: 0.8, min: 0, max: 1, step: 0.01 },
       restitution: { value: 0.05, min: 0, max: 1, step: 0.01 },
     }, { collapsed: true }),
@@ -140,11 +144,11 @@ export default function Experience() {
    */
   const mapGrid: [number, number, number][] = []
   const layers = 2
-  const spacingX = 12.3
-  const spacingZ = 17.8
+  const spacingX = 20 // 12.3
+  const spacingZ = 20 // 17.8
   for (let x = -layers; x <= layers; x++) {
     for (let z = -layers; z <= layers; z++) {
-      mapGrid.push([x * spacingX, 0, z * spacingZ]);
+      mapGrid.push([x * spacingX, -2, z * spacingZ]);
     }
   }
 
@@ -249,8 +253,9 @@ export default function Experience() {
           ref={ecctrlRef}
           debug={EcctrlDebugSettings.EcctrlDebug}
           {...EcctrlDebugSettings}
-        // spring: 900, damping: 30
-        // position={[1.35, 3, 0]}
+          // spring: 900, damping: 30
+          position={[0, 3, -12]}
+        // jumpVel={10}
         >
           {/* Character Model */}
           <group ref={characterModelRef}>
@@ -283,22 +288,24 @@ export default function Experience() {
        */}
 
       {/* Instanced mesh */}
-      <InstancedStaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
+      {/* <InstancedStaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings} >
+        <InstancedSong />
+      </InstancedStaticCollider> */}
+
+      {/* <InstancedStaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings} >
         <InstancedMap />
-      </InstancedStaticCollider>
+      </InstancedStaticCollider> */}
 
       {/* <StaticCollider debug>
         <InstancedMap />
       </StaticCollider> */}
 
       {/* Cloned mesh */}
-      {/* <StaticCollider>
+      {/* <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings} >
         <group position={[0, 0, 0]}>
           {mapGrid.map((pos, idx) => (
-            <Map key={`inner-${idx}`} position={pos} />
-            // <mesh key={`inner-${idx}`} position={[pos[0], -2, pos[2]]} >
-            //   <sphereGeometry args={[1]} />
-            // </mesh>
+            // <Map key={`inner-${idx}`} position={pos} />
+            <SongMap key={`inner-${idx}`} position={pos} />
           ))}
         </group>
       </StaticCollider> */}
@@ -319,6 +326,14 @@ export default function Experience() {
        * 
        */}
       {/* Static Collider */}
+      {/* <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
+        <LargeFloorMap position={[0, -2, 0]} />
+      </StaticCollider> */}
+
+      {/* <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
+        <SongMap />
+      </StaticCollider> */}
+
       <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
         <StaticMap model={testMapModel} position={[0, -3, 0]} />
       </StaticCollider>

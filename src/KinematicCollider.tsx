@@ -22,6 +22,7 @@ export interface KinematicColliderProps extends Omit<React.ComponentProps<'group
     restitution?: number;
     friction?: number;
     excludeFloatHit?: boolean;
+    excludeCollisionCheck?: boolean;
     BVHOptions?: {
         strategy?: SplitStrategy
         verbose?: boolean
@@ -39,6 +40,7 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
     restitution = 0.05,
     friction = 0.8,
     excludeFloatHit = false,
+    excludeCollisionCheck = false,
     BVHOptions = {
         strategy: SAH,
         verbose: false,
@@ -127,6 +129,7 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
             restitution,
             friction,
             excludeFloatHit,
+            excludeCollisionCheck,
             type: "KINEMATIC",
             deltaPos: new THREE.Vector3(),
             deltaQuat: new THREE.Quaternion(),
@@ -224,8 +227,9 @@ const KinematicCollider = forwardRef<THREE.Group, KinematicColliderProps>(({
             mergedMesh.current.userData.friction = friction
             mergedMesh.current.userData.restitution = restitution
             mergedMesh.current.userData.excludeFloatHit = excludeFloatHit
+            mergedMesh.current.userData.excludeCollisionCheck = excludeCollisionCheck
         }
-    }, [props.visible, friction, restitution, excludeFloatHit])
+    }, [props.visible, friction, restitution, excludeFloatHit, excludeCollisionCheck])
 
     /**
      * Update BVH debug helper
