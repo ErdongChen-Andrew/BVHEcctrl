@@ -10,7 +10,7 @@ import { useControls, folder, button } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
-import BVHEcctrl, { characterStatus } from "../src/BVHEcctrl"
+import BVHEcctrl, { characterStatus, type BVHEcctrlApi } from "../src/BVHEcctrl"
 import StaticCollider from "../src/StaticCollider"
 import KinematicCollider from "../src/KinematicCollider"
 import InstancedStaticCollider from "../src/InstancedStaticCollider"
@@ -27,6 +27,8 @@ import HintzeHall from "./HintzeHall";
 import InstancedSong from "./InstancedSong";
 import SongMap from "./SongMap";
 import LargeFloorMap from "./LargeFloorMap";
+import InstancedBuild from "./InstancedBuild";
+import InfinityBuildRoof from "./InfinityBuildRoof";
 
 export default function Experience() {
   /**
@@ -42,7 +44,8 @@ export default function Experience() {
   // const camControlRef = useRef<ThreeOrbitControls | null>(null)
   const camControlRef = useRef<CameraControls | null>(null)
   // const camControlRef = useRef<ThreePointerLockControls | null>(null)
-  const ecctrlRef = useRef<THREE.Group | null>(null)
+  const ecctrlRef = useRef<BVHEcctrlApi | null>(null)
+  // const ecctrlRef = useRef<THREE.Group | null>(null)
   const characterModelRef = useRef<THREE.Group | null>(null)
   const kinematicCollderRef = useRef<THREE.Group | null>(null)
   const kinematicPlatformRef001 = useRef<THREE.Group | null>(null)
@@ -57,8 +60,8 @@ export default function Experience() {
     CameraLock: button(() => { camControlRef.current?.lockPointer() }),
     FirstPerson: button(() => { camControlRef.current?.dolly(camControlRef.current.distance - 0.02, true) }),
     ResetPlayer: button(() => {
-      ecctrlRef.current?.position.set(0, 8, 22);
-      ecctrlRef.current?.userData.resetLinVel()
+      ecctrlRef.current?.group?.position.set(0, 8, 22);
+      ecctrlRef.current?.resetLinVel()
     }),
     EcctrlDebug: false,
     Physics: folder({
@@ -69,6 +72,7 @@ export default function Experience() {
       maxFallSpeed: { value: 50, min: 1, max: 200, step: 1 },
       mass: { value: 1, min: 0.1, max: 10, step: 0.1 },
       sleepTimeout: { value: 10, min: 0, max: 100, step: 0.1 },
+      slowMotionFactor: { value: 1, min: 0, max: 1, step: 0.01 },
     }, { collapsed: true }),
     Movement: folder({
       turnSpeed: { value: 15, min: 0, max: 100, step: 1 },
@@ -181,12 +185,13 @@ export default function Experience() {
      */
     // For camera control to follow character
     if (camControlRef.current && ecctrlRef.current) {
-      camControlRef.current.moveTo(
-        ecctrlRef.current.position.x,
-        ecctrlRef.current.position.y + 0.3,
-        ecctrlRef.current.position.z,
-        true
-      )
+      if (ecctrlRef.current.group)
+        camControlRef.current.moveTo(
+          ecctrlRef.current.group.position.x,
+          ecctrlRef.current.group.position.y + 0.3,
+          ecctrlRef.current.group.position.z,
+          true
+        )
 
       // Hide character model if character too close
       if (characterModelRef.current) {
@@ -244,7 +249,14 @@ export default function Experience() {
 
       <Lights />
 
-      <Environment background blur={0.6} environmentIntensity={0.1} files="/textures/sky.hdr" />
+      <Environment
+        background
+        blur={0.6}
+        environmentIntensity={0.1}
+        backgroundRotation={[0, -Math.PI / 2, 0]}
+        files="/textures/sky.hdr"
+      // files="/textures/night.hdr"
+      />
 
       {/* Keyboard preset */}
       <KeyboardControls map={keyboardMap}>
@@ -254,7 +266,8 @@ export default function Experience() {
           debug={EcctrlDebugSettings.EcctrlDebug}
           {...EcctrlDebugSettings}
           // spring: 900, damping: 30
-          position={[0, 3, -12]}
+          // position={[0, 3, -12]}
+          // position={[-34, 0, -2]}
         // jumpVel={10}
         >
           {/* Character Model */}
@@ -288,6 +301,10 @@ export default function Experience() {
        */}
 
       {/* Instanced mesh */}
+      {/* <InstancedStaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings} >
+        <InstancedBuild position={[0, -2, 0]} />
+      </InstancedStaticCollider> */}
+
       {/* <InstancedStaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings} >
         <InstancedSong />
       </InstancedStaticCollider> */}
@@ -326,6 +343,10 @@ export default function Experience() {
        * 
        */}
       {/* Static Collider */}
+      {/* <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
+        <InfinityBuildRoof position={[0, -2, 0]} />
+      </StaticCollider> */}
+
       {/* <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings}>
         <LargeFloorMap position={[0, -2, 0]} />
       </StaticCollider> */}

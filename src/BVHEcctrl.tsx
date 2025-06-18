@@ -72,6 +72,7 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     maxFallSpeed?: number;
     mass?: number;
     sleepTimeout?: number;
+    slowMotionFactor?: number;
     turnSpeed?: number;
     maxWalkSpeed?: number;
     maxRunSpeed?: number;
@@ -93,7 +94,24 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     collisionPushBackThreshold?: number;
 };
 
-const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
+type MovementInput = {
+    forward?: boolean;
+    backward?: boolean;
+    leftward?: boolean;
+    rightward?: boolean;
+    joystick?: THREE.Vector2;
+    run?: boolean;
+    jump?: boolean;
+};
+
+export interface BVHEcctrlApi {
+    group: THREE.Group;
+    resetLinVel: () => void;
+    setLinVel: (v: THREE.Vector3) => void;
+    setMovement: (input: MovementInput) => void;
+}
+
+const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     children,
     debug = true,
     // Character collider props
@@ -106,6 +124,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     maxFallSpeed = 50,
     mass = 1,
     sleepTimeout = 10,
+    slowMotionFactor = 1,
     // Controller props
     turnSpeed = 15,
     maxWalkSpeed = 3,
@@ -137,7 +156,10 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const capsuleRadius = useMemo(() => colliderCapsuleArgs[0], [])
     const capsuleLength = useMemo(() => colliderCapsuleArgs[1], [])
     // Ref for meshes
-    const characterGroupRef = (ref as RefObject<THREE.Group>) ?? useRef<THREE.Group | null>(null);
+    // const characterGroupRef = useRef<THREE.Group | null>(null)
+    const characterGroupRef = useRef<THREE.Group>(new THREE.Group())
+    // const characterGroupRef = ref ?? useRef<THREE.Group | null>(null);
+    // const characterGroupRef = (ref as RefObject<THREE.Group>) ?? useRef<THREE.Group | null>(null);
     const characterColliderRef = useRef<THREE.Mesh | null>(null);
     const characterModelRef = useRef<THREE.Group | null>(null);
     // Debug indicators meshes
@@ -238,6 +260,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
     const runState = useRef<boolean>(false)
     const jumpState = useRef<boolean>(false)
     const isOnGround = useRef<boolean>(false)
+    const prevIsOnGround = useRef<boolean>(false)
     const characterModelTargetQuat = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const characterModelLookMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
     const characterOrigin = useMemo(() => new THREE.Vector3(0, 0, 0), [])
@@ -1000,7 +1023,8 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                 isFalling.current = false
                 // Calculate spring force
                 floatHitVec.current.subVectors(floatSensorSegment.current.start, globalClosestPoint.current)
-                const springForce = floatSpringK * (floatHeight + capsuleRadius - floatHitVec.current.dot(upAxis.current));
+                const springDist = floatHeight + capsuleRadius - floatHitVec.current.dot(upAxis.current)
+                const springForce = floatSpringK * springDist;
                 // Calculate damping force
                 const dampingForce = floatDampingC * currentLinVel.current.dot(upAxis.current);
                 // Total float force
@@ -1192,34 +1216,70 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
                 characterModelRef.current.quaternion.premultiply(yawQuaternion.current);
             }
         }
-    }, [])    
+    }, [])
 
     /**
      * Update character status for exporting
      */
-    const updateCharacterStatus = useCallback(() => {
+    const updateCharacterAnimation = useCallback((run: boolean, jump: boolean) => {
+        // On ground condition
+        if (isOnGround.current) {
+            if (!prevIsOnGround.current) {
+                return "JUMP_LAND"
+            } else {
+                if (inputDir.current.lengthSq() === 0) {
+                    return "IDLE"
+                } else {
+                    if (!run) {
+                        return "WALK"
+                    } else {
+                        return "RUN"
+                    }
+                }
+            }
+        }
+        // In the air condition
+        else {
+            if (prevIsOnGround.current && jump) {
+                return "JUMP_START"
+            } else {
+                if (isFalling.current) {
+                    return "JUMP_FALL"
+                } else {
+                    return "JUMP_IDLE"
+                }
+            }
+        }
+    }, [])
+    const updateCharacterStatus = useCallback((run: boolean, jump: boolean) => {
+        characterModelRef.current?.getWorldPosition(characterStatus.position)
         characterModelRef.current?.getWorldQuaternion(characterStatus.quaternion)
         characterStatus.linvel.copy(currentLinVel.current)
         characterStatus.inputDir.copy(inputDir.current)
         characterStatus.movingDir.copy(movingDir.current)
         characterStatus.isOnGround = isOnGround.current
         characterStatus.isOnMovingPlatform = isOnMovingPlatform.current
+
+        characterStatus.animationStatus = updateCharacterAnimation(run, jump)
+
+        // characterStatus.isIdling = inputDir.current.lengthSq() === 0 && isOnGround.current
+        // characterStatus.isWalking = inputDir.current.lengthSq() > 0 && isOnGround.current && !run
+        // characterStatus.isRunning = inputDir.current.lengthSq() > 0 && isOnGround.current && run
+        // characterStatus.isJumpingStart = prevIsOnGround.current && !isOnGround.current && jump
+        // characterStatus.isJumpingIdle = !prevIsOnGround.current && !isOnGround.current
+        // characterStatus.isFalling = isFalling.current
+        // characterStatus.isJumpingLand = !prevIsOnGround.current && isOnGround.current
+
+
+        prevIsOnGround.current = isOnGround.current
     }, [])
 
     /**
-     * Export controller functions to userData
+     * Bind controller functions to ref
      */
     const resetLinVel = useCallback(() => currentLinVel.current.set(0, 0, 0), [])
     const setLinVel = useCallback((velocity: THREE.Vector3) => currentLinVel.current.add(velocity), [])
-    const setMovement = useCallback((movement: {
-        forward?: boolean,
-        backward?: boolean,
-        leftward?: boolean,
-        rightward?: boolean,
-        joystick?: THREE.Vector2,
-        run?: boolean,
-        jump?: boolean
-    }) => {
+    const setMovement = useCallback((movement: MovementInput) => {
         if (movement.forward) forwardState.current = movement.forward;
         if (movement.backward) backwardState.current = movement.backward;
         if (movement.leftward) leftwardState.current = movement.leftward;
@@ -1228,6 +1288,17 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
         if (movement.run) runState.current = movement.run;
         if (movement.jump) jumpState.current = movement.jump;
     }, [])
+    useImperativeHandle(ref, () => {
+        return {
+            get group() {
+                return characterGroupRef.current;
+            },
+            resetLinVel,
+            setLinVel,
+            setMovement,
+
+        };
+    }, [resetLinVel, setLinVel, setMovement]);
 
     /**
      * Update debug indicators function
@@ -1279,6 +1350,12 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
         if (paused || state.clock.elapsedTime < delay) return
 
         /**
+         * Apply slow motion to delta time
+         */
+        const deltaTime = Math.min(1 / 45, delta) * slowMotionFactor // Fixed smulation at minimum 45FPS
+        if (delta > 1 / 45) console.warn("Low FPS detected — simulation capped to 45 FPS for stability")
+
+        /**
          * Get camera azimuthal angle
          */
         // const camAngle = getAzimuthalAngle(state.camera, upAxis);
@@ -1300,7 +1377,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
          */
         setInputDirection({ forward, backward, leftward, rightward, joystick: joystickState.current })
         // Apply user input to character moving velocity
-        handleCharacterMovement(run, delta)
+        handleCharacterMovement(run, deltaTime)
         // Character jump input
         if (jump && isOnGround.current) currentLinVel.current.y = jumpVel
         // Update character moving diretion
@@ -1312,12 +1389,12 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
          * Check if character is sleeping,
          * If so, pause functions to save performance
          */
-        checkCharacterSleep(jump, delta)
+        checkCharacterSleep(jump, deltaTime)
         if (!isSleeping.current) {
             /**
              * Apply custom gravity to character current velocity
              */
-            if (!isOnGround.current) applyGravity(delta)
+            if (!isOnGround.current) applyGravity(deltaTime)
 
             /**
              * Update collider segement/bbox to new position for collision check
@@ -1328,12 +1405,12 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
              * Handle character collision response
              * Apply contact normal and contact depth to character current velocity
              */
-            handleCollisionResponse(colliderMeshesArray, delta)
+            handleCollisionResponse(colliderMeshesArray, deltaTime)
 
             /**
              * Handle character floating response
              */
-            handleFloatingResponse(colliderMeshesArray, jump, delta)
+            handleFloatingResponse(colliderMeshesArray, jump, deltaTime)
 
             /**
              * Update character position and rotation with moving platform
@@ -1344,12 +1421,12 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
              * Apply sum-up velocity to move character position
              */
             if (characterGroupRef.current)
-                characterGroupRef.current.position.addScaledVector(currentLinVel.current, delta)
+                characterGroupRef.current.position.addScaledVector(currentLinVel.current, deltaTime)
 
             /**
              * Update character status for exporting
              */
-            updateCharacterStatus()
+            updateCharacterStatus(run, jump)
         }
 
         /**
@@ -1360,7 +1437,7 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
 
     return (
         <Suspense fallback={null} >
-            <group {...props} ref={characterGroupRef} dispose={null} userData={{ resetLinVel, setLinVel, setMovement }}>
+            <group {...props} ref={characterGroupRef} dispose={null} >
                 {/* Character capsule collider */}
                 <mesh ref={characterColliderRef} visible={debug}>
                     <capsuleGeometry args={colliderCapsuleArgs} />
@@ -1434,7 +1511,19 @@ const BVHEcctrl = forwardRef<THREE.Group, EcctrlProps>(({
 
 export default React.memo(BVHEcctrl);
 
-export const characterStatus = {
+export type CharacterAnimationStatus = "IDLE" | "WALK" | "RUN" | "JUMP_START" | "JUMP_IDLE" | "JUMP_FALL" | "JUMP_LAND"
+export interface CharacterStatus {
+    position: THREE.Vector3
+    linvel: THREE.Vector3
+    quaternion: THREE.Quaternion
+    inputDir: THREE.Vector3
+    movingDir: THREE.Vector3
+    isOnGround: boolean
+    isOnMovingPlatform: boolean
+    animationStatus: CharacterAnimationStatus
+}
+
+export const characterStatus: CharacterStatus = {
     position: new THREE.Vector3(),
     linvel: new THREE.Vector3(),
     quaternion: new THREE.Quaternion(),
@@ -1442,4 +1531,5 @@ export const characterStatus = {
     movingDir: new THREE.Vector3(),
     isOnGround: false,
     isOnMovingPlatform: false,
+    animationStatus: "IDLE",
 };

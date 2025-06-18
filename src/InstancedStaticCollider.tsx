@@ -82,7 +82,7 @@ const InstancedStaticCollider = forwardRef<THREE.Group, StaticColliderProps>(({
             const cleanGeom = new THREE.BufferGeometry();
             cleanGeom.setAttribute('position', baseGeom.getAttribute('position').clone());
             cleanGeom.setAttribute('normal', baseGeom.getAttribute('normal').clone());
-            // cleanGeom.applyMatrix4(mesh.matrixWorld);
+            cleanGeom.applyMatrix4(mesh.matrixWorld);
 
             // Create boundsTree and mesh from clean geometry 
             cleanGeom.computeBoundsTree = computeBoundsTree

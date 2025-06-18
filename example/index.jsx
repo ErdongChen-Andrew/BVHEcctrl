@@ -18,15 +18,16 @@ root.render(
         fov: 65,
         near: 0.1,
         far: 1000,
-        position: [0, -1, -5],
+        position: [0, 1, 5],
       }}
-      gl={async (props) => {
-        extend(THREE);
-        const renderer = new THREE.WebGPURenderer(props);
-        await renderer.init();
-        return renderer;
-      }}
+      // gl={async (props) => {
+      //   extend(THREE);
+      //   const renderer = new THREE.WebGPURenderer(props);
+      //   await renderer.init();
+      //   return renderer;
+      // }}
     >
+      {/* <fog attach="fog" args={["#333", 8, 100]} /> */}
       <Suspense fallback={null}>
         <Bvh firstHitOnly>
           <Experience />
