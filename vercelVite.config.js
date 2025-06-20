@@ -16,6 +16,6 @@ export default {
     outDir: "./exampleDist",
     emptyOutDir: true,
     sourcemap: false,
-    minify: "terser",
+    minify: "esbuild",
   },
 };
