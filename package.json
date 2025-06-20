@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pmndrs/ecctrl.git"
+    "url": "git+https://github.com/ErdongChen-Andrew/BVHEcctrl.git"
   },
   "files": [
     "dist/*",
