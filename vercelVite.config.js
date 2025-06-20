@@ -15,6 +15,7 @@ export default {
   build: {
     outDir: "./exampleDist",
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
+    minify: "terser",
   },
 };
