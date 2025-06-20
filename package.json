@@ -17,8 +17,7 @@
     "url": "git+https://github.com/ErdongChen-Andrew/BVHEcctrl.git"
   },
   "files": [
-    "dist/*",
-    "src/*"
+    "dist/*"
   ],
   "type": "module",
   "types": "./dist/BVHEcctrl.d.ts",
