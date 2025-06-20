@@ -61,56 +61,6 @@ import { clamp, lerp } from "three/src/math/MathUtils";
 //     return angle; // in radians
 // }
 
-export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> {
-    children?: ReactNode;
-    debug?: boolean;
-    colliderCapsuleArgs?: [radius: number, length: number, capSegments: number, radialSegments: number];
-    paused?: boolean;
-    delay?: number;
-    gravity?: number;
-    fallGravityFactor?: number;
-    maxFallSpeed?: number;
-    mass?: number;
-    sleepTimeout?: number;
-    slowMotionFactor?: number;
-    turnSpeed?: number;
-    maxWalkSpeed?: number;
-    maxRunSpeed?: number;
-    acceleration?: number;
-    deceleration?: number;
-    counterVelFactor?: number;
-    airDragFactor?: number;
-    jumpVel?: number;
-    maxSlope?: number;
-    floatHeight?: number;
-    floatPullBackHeight?: number;
-    floatSensorRadius?: number;
-    floatSpringK?: number;
-    floatDampingC?: number;
-    collisionCheckIteration?: number;
-    // collisionPushBackStrength?: number;
-    collisionPushBackVelocity?: number;
-    collisionPushBackDamping?: number;
-    collisionPushBackThreshold?: number;
-};
-
-type MovementInput = {
-    forward?: boolean;
-    backward?: boolean;
-    leftward?: boolean;
-    rightward?: boolean;
-    joystick?: THREE.Vector2;
-    run?: boolean;
-    jump?: boolean;
-};
-
-export interface BVHEcctrlApi {
-    group: THREE.Group;
-    resetLinVel: () => void;
-    setLinVel: (v: THREE.Vector3) => void;
-    setMovement: (input: MovementInput) => void;
-}
-
 const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     children,
     debug = true,
@@ -1252,6 +1202,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         }
     }, [])
     const updateCharacterStatus = useCallback((run: boolean, jump: boolean) => {
+        // Control status
         characterModelRef.current?.getWorldPosition(characterStatus.position)
         characterModelRef.current?.getWorldQuaternion(characterStatus.quaternion)
         characterStatus.linvel.copy(currentLinVel.current)
@@ -1259,18 +1210,8 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         characterStatus.movingDir.copy(movingDir.current)
         characterStatus.isOnGround = isOnGround.current
         characterStatus.isOnMovingPlatform = isOnMovingPlatform.current
-
+        // Animation status
         characterStatus.animationStatus = updateCharacterAnimation(run, jump)
-
-        // characterStatus.isIdling = inputDir.current.lengthSq() === 0 && isOnGround.current
-        // characterStatus.isWalking = inputDir.current.lengthSq() > 0 && isOnGround.current && !run
-        // characterStatus.isRunning = inputDir.current.lengthSq() > 0 && isOnGround.current && run
-        // characterStatus.isJumpingStart = prevIsOnGround.current && !isOnGround.current && jump
-        // characterStatus.isJumpingIdle = !prevIsOnGround.current && !isOnGround.current
-        // characterStatus.isFalling = isFalling.current
-        // characterStatus.isJumpingLand = !prevIsOnGround.current && isOnGround.current
-
-
         prevIsOnGround.current = isOnGround.current
     }, [])
 
@@ -1511,6 +1452,70 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
 
 export default React.memo(BVHEcctrl);
 
+/**
+ * Export values/features/functions
+ */
+export { default as StaticCollider } from "./StaticCollider"
+export type { StaticColliderProps } from './StaticCollider'
+export { default as KinematicCollider } from "./KinematicCollider"
+export type { KinematicColliderProps } from "./KinematicCollider"
+export { default as InstancedStaticCollider } from "./InstancedStaticCollider"
+
+export const characterStatus: CharacterStatus = {
+    position: new THREE.Vector3(),
+    linvel: new THREE.Vector3(),
+    quaternion: new THREE.Quaternion(),
+    inputDir: new THREE.Vector3(),
+    movingDir: new THREE.Vector3(),
+    isOnGround: false,
+    isOnMovingPlatform: false,
+    animationStatus: "IDLE",
+};
+
+/**
+ * Export ecctrl types
+ */
+export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> {
+    children?: ReactNode;
+    debug?: boolean;
+    colliderCapsuleArgs?: [radius: number, length: number, capSegments: number, radialSegments: number];
+    paused?: boolean;
+    delay?: number;
+    gravity?: number;
+    fallGravityFactor?: number;
+    maxFallSpeed?: number;
+    mass?: number;
+    sleepTimeout?: number;
+    slowMotionFactor?: number;
+    turnSpeed?: number;
+    maxWalkSpeed?: number;
+    maxRunSpeed?: number;
+    acceleration?: number;
+    deceleration?: number;
+    counterVelFactor?: number;
+    airDragFactor?: number;
+    jumpVel?: number;
+    maxSlope?: number;
+    floatHeight?: number;
+    floatPullBackHeight?: number;
+    floatSensorRadius?: number;
+    floatSpringK?: number;
+    floatDampingC?: number;
+    collisionCheckIteration?: number;
+    // collisionPushBackStrength?: number;
+    collisionPushBackVelocity?: number;
+    collisionPushBackDamping?: number;
+    collisionPushBackThreshold?: number;
+};
+
+export type MovementInput = { forward?: boolean; backward?: boolean; leftward?: boolean; rightward?: boolean; joystick?: THREE.Vector2; run?: boolean; jump?: boolean };
+export interface BVHEcctrlApi {
+    group: THREE.Group;
+    resetLinVel: () => void;
+    setLinVel: (v: THREE.Vector3) => void;
+    setMovement: (input: MovementInput) => void;
+}
+
 export type CharacterAnimationStatus = "IDLE" | "WALK" | "RUN" | "JUMP_START" | "JUMP_IDLE" | "JUMP_FALL" | "JUMP_LAND"
 export interface CharacterStatus {
     position: THREE.Vector3
@@ -1523,13 +1528,3 @@ export interface CharacterStatus {
     animationStatus: CharacterAnimationStatus
 }
 
-export const characterStatus: CharacterStatus = {
-    position: new THREE.Vector3(),
-    linvel: new THREE.Vector3(),
-    quaternion: new THREE.Quaternion(),
-    inputDir: new THREE.Vector3(),
-    movingDir: new THREE.Vector3(),
-    isOnGround: false,
-    isOnMovingPlatform: false,
-    animationStatus: "IDLE",
-};

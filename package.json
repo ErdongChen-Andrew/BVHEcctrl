@@ -21,13 +21,13 @@
     "src/*"
   ],
   "type": "module",
-  "types": "./dist/Ecctrl.d.ts",
-  "main": "./dist/Ecctrl.cjs",
-  "module": "./dist/Ecctrl.js",
+  "types": "./dist/BVHEcctrl.d.ts",
+  "main": "./dist/BVHEcctrl.cjs",
+  "module": "./dist/BVHEcctrl.js",
   "exports": {
-    "types": "./dist/Ecctrl.d.ts",
-    "require": "./dist/Ecctrl.cjs",
-    "import": "./dist/Ecctrl.js"
+    "types": "./dist/BVHEcctrl.d.ts",
+    "require": "./dist/BVHEcctrl.cjs",
+    "import": "./dist/BVHEcctrl.js"
   },
   "sideEffects": false,
   "devDependencies": {
@@ -49,7 +49,6 @@
   "peerDependencies": {
     "@react-three/drei": ">=9.0",
     "@react-three/fiber": ">=8.0",
-    "@react-three/rapier": ">=1.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": ">=0.170.0"

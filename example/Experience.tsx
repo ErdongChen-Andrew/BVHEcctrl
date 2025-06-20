@@ -1,24 +1,16 @@
 import * as THREE from "three"
 import { CameraControls, Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls, useGLTF, type CameraControlsProps } from "@react-three/drei";
 import { Perf } from "r3f-perf";
-import { Physics } from "@react-three/rapier";
-import Floor from "./Floor";
 import Lights from "./Lights";
-import Slopes from "./Slopes";
-import RoughPlane from "./RoughPlane";
 import { useControls, folder, button } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
-import BVHEcctrl, { characterStatus, type BVHEcctrlApi } from "../src/BVHEcctrl"
-import StaticCollider from "../src/StaticCollider"
-import KinematicCollider from "../src/KinematicCollider"
-import InstancedStaticCollider from "../src/InstancedStaticCollider"
+import BVHEcctrl, { characterStatus, StaticCollider, KinematicCollider, InstancedStaticCollider, type BVHEcctrlApi } from "../src/BVHEcctrl"
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
 import StaticMap from "./StaticMap";
 import InstancedMap from "./InstancedMap";
-import { clamp } from "three/src/math/MathUtils.js";
 import LargePlatform from "./LargePlatform";
 import RotateBars from "./RotateBars";
 import SlideMap from "./SlideMap";
@@ -60,7 +52,7 @@ export default function Experience() {
     CameraLock: button(() => { camControlRef.current?.lockPointer() }),
     FirstPerson: button(() => { camControlRef.current?.dolly(camControlRef.current.distance - 0.02, true) }),
     ResetPlayer: button(() => {
-      ecctrlRef.current?.group?.position.set(0, 8, 22);
+      ecctrlRef.current?.group?.position.set(0, 0, 0);
       ecctrlRef.current?.resetLinVel()
     }),
     EcctrlDebug: false,
@@ -127,36 +119,6 @@ export default function Experience() {
   ];
 
   /**
-   * Initialize character facing direction
-   */
-  // useEffect(() => {
-  // characterModelRef.current?.parent?.rotateY(1)
-  // }, [])
-
-  /**
-   * Show/hide map collider
-   */
-  // const [show, setShow] = useState(true)
-  // useEffect(() => {
-  //   setInterval(() => {
-  //     setShow(prev => !prev)
-  //   }, 5000)
-  // }, [])
-
-  /**
-   * Stress test array preset
-   */
-  const mapGrid: [number, number, number][] = []
-  const layers = 2
-  const spacingX = 20 // 12.3
-  const spacingZ = 20 // 17.8
-  for (let x = -layers; x <= layers; x++) {
-    for (let z = -layers; z <= layers; z++) {
-      mapGrid.push([x * spacingX, -2, z * spacingZ]);
-    }
-  }
-
-  /**
    * Initialize kinematic colliders' position/rotation
    */
   useEffect(() => {
@@ -173,16 +135,6 @@ export default function Experience() {
   }, [])
 
   useFrame((state) => {
-    // For orbit control to follow character
-    // if (camControlRef.current && ecctrlRef.current) {
-    //   state.camera.position.sub(camControlRef.current.target)
-    //   camControlRef.current.target.copy(ecctrlRef.current.position)
-    //   state.camera.position.add(ecctrlRef.current.position)
-    // }
-
-    /**
-     * 
-     */
     // For camera control to follow character
     if (camControlRef.current && ecctrlRef.current) {
       if (ecctrlRef.current.group)
@@ -193,7 +145,7 @@ export default function Experience() {
           true
         )
 
-      // Hide character model if character too close
+      // Hide character model if camera is too close
       if (characterModelRef.current) {
         if (camControlRef.current.distance < 0.7) {
           characterModelRef.current.visible = false
@@ -202,14 +154,6 @@ export default function Experience() {
         }
       }
     }
-
-    /**
-     * 
-     */
-    // For pointer lock control to follow character
-    // if (camControlRef.current && ecctrlRef.current) {
-    //   state.camera.position.copy(ecctrlRef.current.position)
-    // }
 
     // Animate kinematic platform
     if (kinematicPlatformRef001.current)
@@ -231,21 +175,12 @@ export default function Experience() {
 
       <Stats />
 
-      {/* <OrbitControls
-        ref={camControlRef}
-        dampingFactor={0.1}
-        enablePan={false}
-        makeDefault
-      /> */}
-
       <CameraControls
         ref={camControlRef}
         smoothTime={0.1}
         colliderMeshes={colliderMeshesArray}
         makeDefault
       />
-
-      {/* <PointerLockControls ref={camControlRef} makeDefault/> */}
 
       <Lights />
 
@@ -255,7 +190,6 @@ export default function Experience() {
         environmentIntensity={0.1}
         backgroundRotation={[0, -Math.PI / 2, 0]}
         files="/textures/sky.hdr"
-      // files="/textures/night.hdr"
       />
 
       {/* Keyboard preset */}
@@ -265,10 +199,7 @@ export default function Experience() {
           ref={ecctrlRef}
           debug={EcctrlDebugSettings.EcctrlDebug}
           {...EcctrlDebugSettings}
-          // spring: 900, damping: 30
-          // position={[0, 3, -12]}
-          // position={[-34, 0, -2]}
-        // jumpVel={10}
+        // spring: 900, damping: 30
         >
           {/* Character Model */}
           <group ref={characterModelRef}>
@@ -276,18 +207,6 @@ export default function Experience() {
           </group>
         </BVHEcctrl>
       </KeyboardControls>
-
-      {/* <StaticCollider position={[0, 0, 0]}>
-        <Map />
-      </StaticCollider> */}
-
-      {/* <StaticCollider >
-        <RoughPlane />
-      </StaticCollider> */}
-
-      {/* <StaticCollider >
-        <Slopes position={[0, -3, 0]} />
-      </StaticCollider> */}
 
       {/**
        * 
@@ -315,16 +234,6 @@ export default function Experience() {
 
       {/* <StaticCollider debug>
         <InstancedMap />
-      </StaticCollider> */}
-
-      {/* Cloned mesh */}
-      {/* <StaticCollider debug={EcctrlMapDebugSettings.MapDebug} {...EcctrlMapDebugSettings} >
-        <group position={[0, 0, 0]}>
-          {mapGrid.map((pos, idx) => (
-            // <Map key={`inner-${idx}`} position={pos} />
-            <SongMap key={`inner-${idx}`} position={pos} />
-          ))}
-        </group>
       </StaticCollider> */}
 
       {/* Large model */}
