@@ -1,8 +1,8 @@
 {
   "name": "bvhecctrl",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "author": "Erdong Chen",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "description": "A simple bvh character controller for R3F",
   "keywords": [
     "react",
