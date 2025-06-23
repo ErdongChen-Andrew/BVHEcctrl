@@ -1,6 +1,6 @@
 /*!
  * BVHEcctrl
- * https://github.com/ErdongChen-Andrew/BVHEcctrl
+ * https://github.com/pmndrs/BVHEcctrl
  * (c) 2025 @ErdongChen-Andrew
  * Released under the MIT License.
  */

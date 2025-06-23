@@ -2,7 +2,7 @@
 
 [![Demo Preview](public/images/BVHControllerP1-封面.jpg)](https://bvhecctrl.vercel.app/)
 
-[**BVHEcctrl**](https://github.com/ErdongChen-Andrew/BVHEcctrl) is a lightweight, plug-and-play character controller designed for [`react-three-fiber`](https://github.com/pmndrs/react-three-fiber). It requires **no physics engine**, and utilizes [`three-mesh-bvh`](https://github.com/gkjohnson/three-mesh-bvh) for highly efficient, triangle-accurate collision detection and response.
+[**BVHEcctrl**](https://github.com/pmndrs/bvhecctrl) is a lightweight, plug-and-play character controller designed for [`react-three-fiber`](https://github.com/pmndrs/react-three-fiber). It requires **no physics engine**, and utilizes [`three-mesh-bvh`](https://github.com/gkjohnson/three-mesh-bvh) for highly efficient, triangle-accurate collision detection and response.
 
 > 🧠 Ideal for web-based 3D experiences such as games, interactive portfolios, and virtual worlds.
 
@@ -231,4 +231,4 @@ If you're interested, feel free to vote or leave feedback:
 - Tutorials on building this controller from scratch
 - More experimental features and playground demos
 
-💬 **Leave your thoughts on [GitHub](https://github.com/ErdongChen-Andrew/BVHEcctrl/issues) or join the discussion on the [pmndrs Discord](https://discord.com/channels/740090768164651008/1162488856088690879).**
+💬 **Leave your thoughts on [GitHub](https://github.com/pmndrs/BVHEcctrl/issues) or join the discussion on the [pmndrs Discord](https://discord.com/channels/740090768164651008/1162488856088690879).**
