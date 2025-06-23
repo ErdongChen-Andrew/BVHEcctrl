@@ -1,6 +1,5 @@
 import * as THREE from "three"
 import { CameraControls, Environment, Grid, KeyboardControls, OrbitControls, PointerLockControls, Stats, StatsGl, TransformControls, useGLTF, type CameraControlsProps } from "@react-three/drei";
-import { Perf } from "r3f-perf";
 import Lights from "./Lights";
 import { useControls, folder, button } from "leva";
 import CharacterModel from "./CharacterModel";
@@ -167,8 +166,6 @@ export default function Experience() {
 
   return (
     <>
-      {/* <Perf position="top-left" minimal /> */}
-
       {/* <StatsGl /> */}
 
       <Stats />
