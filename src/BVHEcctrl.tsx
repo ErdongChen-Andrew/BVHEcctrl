@@ -95,7 +95,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     // collisionPushBackStrength = 200,
     collisionPushBackVelocity = 3,
     collisionPushBackDamping = 0.1,
-    collisionPushBackThreshold = 0.001,
+    collisionPushBackThreshold = 0.05,
     // Other props
     ...props
 }, ref) => {

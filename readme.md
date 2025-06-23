@@ -1,6 +1,6 @@
 # 🕹️ BVHEcctrl
 
-[![Demo Preview](example/images/BVHControllerP1-封面.jpg)](https://bvhecctrl.vercel.app/)
+[![Demo Preview](public/images/BVHControllerP1-封面.jpg)](https://bvhecctrl.vercel.app/)
 
 [**BVHEcctrl**](https://github.com/ErdongChen-Andrew/BVHEcctrl) is a lightweight, plug-and-play character controller designed for [`react-three-fiber`](https://github.com/pmndrs/react-three-fiber). It requires **no physics engine**, and utilizes [`three-mesh-bvh`](https://github.com/gkjohnson/three-mesh-bvh) for highly efficient, triangle-accurate collision detection and response.
 
@@ -12,10 +12,10 @@
 
 <p>
   <a href="https://bvhecctrl.vercel.app/" target="_blank">
-    <img src="example/images/Demo1.png" alt="Demo 1" width="250" />
+    <img src="public/images/Demo1.png" alt="Demo 1" width="250" />
   </a>
   <a href="https://codesandbox.io/p/sandbox/xkk3nf?file=%2Fsrc%2FApp.tsx%3A44%2C1" target="_blank">
-    <img src="example/images/Demo2.png" alt="Demo 2" width="250" />
+    <img src="public/images/Demo2.png" alt="Demo 2" width="250" />
   </a>
 </p>
 
