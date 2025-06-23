@@ -1461,6 +1461,7 @@ export { default as KinematicCollider } from "./KinematicCollider"
 export type { KinematicColliderProps } from "./KinematicCollider"
 export { default as InstancedStaticCollider } from "./InstancedStaticCollider"
 export { useEcctrlStore } from "./stores/useEcctrlStore"
+export type { StoreState } from "./stores/useEcctrlStore"
 
 export const characterStatus: CharacterStatus = {
     position: new THREE.Vector3(),

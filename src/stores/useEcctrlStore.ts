@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
-type State = {
+export type StoreState = {
   // Environment collider mesh infomation
   colliderMeshesArray: THREE.Mesh[];
   setColliderMeshesArray: (mergedMesh: THREE.Mesh) => void;
@@ -17,7 +17,7 @@ type State = {
 };
 
 export const useEcctrlStore = /* @__PURE__ */ create(
-  /* @__PURE__ */ subscribeWithSelector<State>((set) => {
+  /* @__PURE__ */ subscribeWithSelector<StoreState>((set) => {
     return {
       /**
        * Set/remove collider mesh array
