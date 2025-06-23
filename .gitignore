@@ -3,6 +3,5 @@ node_modules
 dist
 .vscode
 exampleDist
-example
 .idea
 package-lock.json
