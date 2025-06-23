@@ -15,7 +15,6 @@ export default {
   build: {
     outDir: "./exampleDist",
     emptyOutDir: true,
-    sourcemap: false,
-    minify: "esbuild",
+    sourcemap: true,
   },
 };

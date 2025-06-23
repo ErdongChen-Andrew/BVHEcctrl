@@ -19,10 +19,9 @@ const dev = defineConfig({
 const build = defineConfig({
   publicDir: false,
   build: {
-    // minify: false,
+    minify: false,
     outDir: "dist",
-    sourcemap: false,
-    minify: "esbuild",
+    sourcemap: true,
     target: "es2018",
     lib: {
       formats: ["cjs", "es"],

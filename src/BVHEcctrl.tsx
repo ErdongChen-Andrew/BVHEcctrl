@@ -63,7 +63,7 @@ import { clamp, lerp } from "three/src/math/MathUtils";
 
 const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     children,
-    debug = true,
+    debug = false,
     // Character collider props
     colliderCapsuleArgs = [0.3, 0.6, 4, 8],
     // Physics props
@@ -1293,8 +1293,8 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         /**
          * Apply slow motion to delta time
          */
-        const deltaTime = Math.min(1 / 45, delta) * slowMotionFactor // Fixed smulation at minimum 45FPS
-        if (delta > 1 / 45) console.warn("Low FPS detected — simulation capped to 45 FPS for stability")
+        const deltaTime = Math.min(1 / 45, delta) * slowMotionFactor // Fixed smulation at minimum 45 FPS
+        // if (delta > 1 / 45) console.warn("Low FPS detected — simulation capped to 45 FPS for stability")
 
         /**
          * Get camera azimuthal angle
@@ -1460,6 +1460,7 @@ export type { StaticColliderProps } from './StaticCollider'
 export { default as KinematicCollider } from "./KinematicCollider"
 export type { KinematicColliderProps } from "./KinematicCollider"
 export { default as InstancedStaticCollider } from "./InstancedStaticCollider"
+export { useEcctrlStore } from "./stores/useEcctrlStore"
 
 export const characterStatus: CharacterStatus = {
     position: new THREE.Vector3(),

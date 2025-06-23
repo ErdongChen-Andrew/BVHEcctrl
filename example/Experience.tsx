@@ -6,15 +6,13 @@ import { useControls, folder, button } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
-import BVHEcctrl, { characterStatus, StaticCollider, KinematicCollider, InstancedStaticCollider, type BVHEcctrlApi } from "../src/BVHEcctrl"
+import BVHEcctrl, { characterStatus, StaticCollider, KinematicCollider, InstancedStaticCollider, useEcctrlStore, type BVHEcctrlApi } from "../src/BVHEcctrl"
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls as ThreeOrbitControls, PointerLockControls as ThreePointerLockControls } from "three-stdlib";
 import StaticMap from "./StaticMap";
 import InstancedMap from "./InstancedMap";
 import LargePlatform from "./LargePlatform";
 import RotateBars from "./RotateBars";
 import SlideMap from "./SlideMap";
-import { useEcctrlStore } from "../src/stores/useEcctrlStore";
 import HintzeHall from "./HintzeHall";
 import InstancedSong from "./InstancedSong";
 import SongMap from "./SongMap";
