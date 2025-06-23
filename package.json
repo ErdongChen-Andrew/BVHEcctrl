@@ -1,6 +1,6 @@
 {
   "name": "bvhecctrl",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": "Erdong Chen",
   "license": "MIT",
   "description": "A simple bvh character controller for R3F",
