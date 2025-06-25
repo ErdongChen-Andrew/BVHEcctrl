@@ -1221,13 +1221,13 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const resetLinVel = useCallback(() => currentLinVel.current.set(0, 0, 0), [])
     const setLinVel = useCallback((velocity: THREE.Vector3) => currentLinVel.current.add(velocity), [])
     const setMovement = useCallback((movement: MovementInput) => {
-        if (movement.forward) forwardState.current = movement.forward;
-        if (movement.backward) backwardState.current = movement.backward;
-        if (movement.leftward) leftwardState.current = movement.leftward;
-        if (movement.rightward) rightwardState.current = movement.rightward;
+        if (movement.forward !== undefined) forwardState.current = movement.forward;
+        if (movement.backward !== undefined) backwardState.current = movement.backward;
+        if (movement.leftward !== undefined) leftwardState.current = movement.leftward;
+        if (movement.rightward !== undefined) rightwardState.current = movement.rightward;
         if (movement.joystick) joystickState.current.copy(movement.joystick);
-        if (movement.run) runState.current = movement.run;
-        if (movement.jump) jumpState.current = movement.jump;
+        if (movement.run !== undefined) runState.current = movement.run;
+        if (movement.jump !== undefined) jumpState.current = movement.jump;
     }, [])
     useImperativeHandle(ref, () => {
         return {

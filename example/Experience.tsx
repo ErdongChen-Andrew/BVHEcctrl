@@ -30,11 +30,8 @@ export default function Experience() {
   /**
    * Initialize setup
    */
-  // const camControlRef = useRef<ThreeOrbitControls | null>(null)
   const camControlRef = useRef<CameraControls | null>(null)
-  // const camControlRef = useRef<ThreePointerLockControls | null>(null)
   const ecctrlRef = useRef<BVHEcctrlApi | null>(null)
-  // const ecctrlRef = useRef<THREE.Group | null>(null)
   const characterModelRef = useRef<THREE.Group | null>(null)
   const kinematicCollderRef = useRef<THREE.Group | null>(null)
   const kinematicPlatformRef001 = useRef<THREE.Group | null>(null)
