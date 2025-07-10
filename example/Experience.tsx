@@ -75,8 +75,8 @@ export default function Experience() {
       floatHeight: { value: 0.2, min: 0, max: 1, step: 0.01 },
       floatPullBackHeight: { value: 0.25, min: 0, max: 1, step: 0.01 },
       floatSensorRadius: { value: 0.12, min: 0, max: 1, step: 0.01 },
-      floatSpringK: { value: 1600, min: 0, max: 3000, step: 10 },
-      floatDampingC: { value: 60, min: 0, max: 1000, step: 1 },
+      floatSpringK: { value: 900, min: 0, max: 3000, step: 10 },
+      floatDampingC: { value: 30, min: 0, max: 1000, step: 1 },
     }, { collapsed: true }),
     Collision: folder({
       collisionCheckIteration: { value: 3, min: 1, max: 10, step: 1 },
@@ -192,6 +192,7 @@ export default function Experience() {
           debug={EcctrlDebugSettings.EcctrlDebug}
           {...EcctrlDebugSettings}
         // spring: 900, damping: 30
+        // spring: 600, damping: 28
         >
           {/* Character Model */}
           <group ref={characterModelRef}>

@@ -88,8 +88,8 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     floatHeight = 0.2,
     floatPullBackHeight = 0.25,
     floatSensorRadius = 0.12,
-    floatSpringK = 1600, //320,
-    floatDampingC = 60, //24,
+    floatSpringK = 600, //1600, //320,
+    floatDampingC = 28, //60, //24,
     // Collision check props
     collisionCheckIteration = 3,
     // collisionPushBackStrength = 200,
@@ -119,9 +119,10 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const debugRaySensorBbox = useRef<THREE.Mesh | null>(null)
     const debugRaySensorStart = useRef<THREE.Mesh | null>(null)
     const debugRaySensorEnd = useRef<THREE.Mesh | null>(null)
-    const contactPointRef = useRef<THREE.Mesh | null>(null)
     const standPointRef = useRef<THREE.Mesh | null>(null)
-    const moveDirRef = useRef<THREE.Mesh | null>(null)
+    const lookDirRef = useRef<THREE.Mesh | null>(null)
+    const inputDirRef = useRef<THREE.ArrowHelper | null>(null)
+    const moveDirRef = useRef<THREE.ArrowHelper | null>(null)
 
     /**
      * Check if inside keyboardcontrols
@@ -214,9 +215,9 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const characterModelTargetQuat = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const characterModelLookMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
     const characterOrigin = useMemo(() => new THREE.Vector3(0, 0, 0), [])
-    const characterXAxis = useMemo(() => new THREE.Vector3(1, 0, 0), [])
-    const characterYAxis = useMemo(() => new THREE.Vector3(0, 1, 0), [])
-    const characterZAxis = useMemo(() => new THREE.Vector3(0, 0, 1), [])
+    // const characterXAxis = useMemo(() => new THREE.Vector3(1, 0, 0), [])
+    // const characterYAxis = useMemo(() => new THREE.Vector3(0, 1, 0), [])
+    // const characterZAxis = useMemo(() => new THREE.Vector3(0, 0, 1), [])
 
     /**
      * Collision preset
@@ -234,13 +235,13 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const pushBackVel = useRef<THREE.Vector3>(new THREE.Vector3())
     // Mutable character collision objects
     const characterBbox = useRef<THREE.Box3>(new THREE.Box3())
-    const characterBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
-    const characterBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const characterBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const characterBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
     const characterSegment = useRef<THREE.Line3>(new THREE.Line3())
     const localCharacterBbox = useRef<THREE.Box3>(new THREE.Box3())
     const localCharacterSegment = useRef<THREE.Line3>(new THREE.Line3())
     const collideInvertMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
-    const collideNormalMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
+    // const collideNormalMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
     const relativeCollideVel = useRef<THREE.Vector3>(new THREE.Vector3())
     const relativeContactPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const contactPointRotationalVel = useRef<THREE.Vector3>(new THREE.Vector3())
@@ -269,15 +270,15 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const segHitPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatHitVec = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatHitNormal = useRef<THREE.Vector3>(new THREE.Vector3())
-    const floatHitMesh = useRef<THREE.Mesh | null>(null)
+    const floatHitMesh = useRef<THREE.Object3D | THREE.Mesh | null>(null)
     const groundFriction = useRef<number>(0.8)
-    const closestPointHorizontalDis = useRef<THREE.Vector3>(new THREE.Vector3())
-    const closestPointVerticalDis = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const closestPointHorizontalDis = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const closestPointVerticalDis = useRef<THREE.Vector3>(new THREE.Vector3())
     // const steepSlopeThreshold = useMemo(() => Math.atan((capsuleRadius + floatHeight + floatPullBackHeight + floatSensorRadius) / (capsuleRadius - floatSensorRadius)), [])
     // Mutable float sensor objects
     const floatSensorBbox = useRef<THREE.Box3>(new THREE.Box3())
-    const floatSensorBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
-    const floatSensorBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const floatSensorBboxSize = useRef<THREE.Vector3>(new THREE.Vector3())
+    // const floatSensorBboxCenter = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatSensorBboxExpendPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatSensorSegment = useRef<THREE.Line3>(new THREE.Line3())
     const localFloatSensorBbox = useRef<THREE.Box3>(new THREE.Box3())
@@ -286,14 +287,14 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const floatInvertMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
     const floatNormalInverseMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
     const floatNormalMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
-    // const floatRaycaster = useRef<THREE.Raycaster>(new THREE.Raycaster())
-    // floatRaycaster.current.far = floatHeight + floatForgiveness
+    const floatRaycaster = useRef<THREE.Raycaster>(new THREE.Raycaster())
+    floatRaycaster.current.far = capsuleRadius + floatHeight + floatPullBackHeight
+    const floatRaycastCandidates = useRef<THREE.Mesh[]>([])
     const relativeHitPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const rotationDeltaPos = useRef<THREE.Vector3>(new THREE.Vector3())
     const yawQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const totalPlatformDeltaPos = useRef<THREE.Vector3>(new THREE.Vector3())
     const isOnMovingPlatform = useRef<boolean>(false)
-    //
     const instancedHitMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
     const floatTempPos = useRef<THREE.Vector3>(new THREE.Vector3())
     const floatTempQuat = useRef<THREE.Quaternion>(new THREE.Quaternion())
@@ -522,7 +523,6 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
             .expandByScalar(floatSensorRadius)
     }, [capsuleRadius, capsuleLength, floatHeight, floatPullBackHeight, floatSensorRadius])
 
-
     /**
      * Collision Check
      * Check if character segment range is collider with map bvh
@@ -651,15 +651,6 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
                 const correction = (collisionPushBackDamping / delta) * avgDepth;
                 pushBackVel.current.copy(accumulatedContactNormal.current).multiplyScalar(correction);
                 currentLinVel.current.add(pushBackVel.current);
-            }
-
-            /**
-             * Debug setup: indicate contact point and direction
-             */
-            if (debug && contactPointRef.current) {
-                // Apply the updated values to contact indicator
-                contactPointRef.current.position.copy(accumulatedContactPoint.current)
-                contactPointRef.current.lookAt(accumulatedContactNormal.current)
             }
         }
     }, [capsuleRadius, collisionPushBackThreshold, collisionPushBackDamping, collisionPushBackVelocity, debug])
@@ -828,7 +819,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
      */
     const floatingCheck = useCallback((mesh: THREE.Mesh, originMatrix: THREE.Matrix4) => {
         // Early exit if map is not visible and if map geometry boundsTree is not ready
-        if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) return
+        // if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) return
 
         // Decompose position/quaternion/scale from originMatrix
         originMatrix.decompose(floatTempPos.current, floatTempQuat.current, floatTempScale.current)
@@ -860,7 +851,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
 
         // Check if floating ray hits any map faces, 
         // and find the closest point to sensor start point
-        mesh.geometry.boundsTree.shapecast({
+        mesh.geometry.boundsTree?.shapecast({
             // If not intersects with float sensor bbox, just stop entire shapecast  
             intersectsBounds: box => box.intersectsBox(localFloatSensorBbox.current),
             // If intersects with float sensor bbox, deeply check collision with float sensor segment
@@ -885,12 +876,6 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
                 const verticalLength = Math.abs(dot) / ((capsuleRadius + floatHeight + floatPullBackHeight) / floatSensorRadius);
                 // Get horizontal length: √(total² - vertical²)
                 const horizontalLength = Math.sqrt(Math.max(0, totalLengthSq - dot * dot));
-
-                // const horizontalDistance = deltaHit.current.clone().projectOnPlane(localUpAxis.current);
-                // const verticalDistance = deltaHit.current.clone().projectOnVector(localUpAxis.current);
-                // verticalDistance.divideScalar((capsuleRadius + floatHeight + floatPullBackHeight) / floatSensorRadius);
-                // const horizontalLength = horizontalDistance.length()
-                // const verticalLength = verticalDistance.length()
 
                 // Only accept triangle hit if inside sensor range
                 if (horizontalLength < 1 && verticalLength < 1) {
@@ -942,25 +927,55 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         // Exit if colliderMeshesArray is not ready
         if (colliderMeshesArray.length === 0) return
 
+        // Reset float sensor hit global info
+        globalMinDistance.current = Infinity;
+        // globalClosestPoint.current.set(0, 0, 0);
+
         /**
          * Floating sensor check if character is on ground
          */
-        // Reset float sensor hit global info
-        globalMinDistance.current = Infinity;
-        globalClosestPoint.current.set(0, 0, 0);
-        for (const mesh of colliderMeshesArray) {
-            // Early exit if map is not visible and if map geometry boundsTree is not ready
-            // if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) continue;
+        // Update float raycaster position and direction
+        floatRaycaster.current.set(floatSensorSegment.current.start, gravityDir.current)
+        floatRaycastCandidates.current.length = 0
+        for (let i = 0; i < colliderMeshesArray.length; i++) {
+            const mesh = colliderMeshesArray[i];
+            if (
+                mesh.visible &&
+                mesh.geometry.boundsTree &&
+                !mesh.userData.excludeFloatHit &&
+                !(mesh instanceof THREE.InstancedMesh)
+            ) {
+                floatRaycastCandidates.current.push(mesh);
+            }
+        }
+        const intersects = floatRaycaster.current.intersectObjects(floatRaycastCandidates.current, false);
 
-            // Check floating hit for different meshes
-            if (mesh instanceof THREE.InstancedMesh) {
-                for (let i = 0; i < mesh.count; i++) {
-                    // Extract the instance matrix
-                    mesh.getMatrixAt(i, instancedHitMatrix.current);
-                    floatingCheck(mesh, instancedHitMatrix.current)
+        // First: check if ray hits any collider mesh (fast and stable)
+        if (intersects.length > 0) {
+            globalMinDistance.current = intersects[0].distance;
+            globalClosestPoint.current.copy(intersects[0].point);
+            floatHitNormal.current.copy(intersects[0].normal!);
+            currSlopeAngle.current = floatHitNormal.current.angleTo(upAxis.current);
+            isOverMaxSlope.current = currSlopeAngle.current > maxSlope;
+            groundFriction.current = intersects[0].object.userData.friction;
+            floatHitMesh.current = intersects[0].object;
+        }
+        // Second: fallback to shapecast if no ray hit (slow but accurate)
+        else {
+            for (const mesh of colliderMeshesArray) {
+                // Early exit if map is not visible and if map geometry boundsTree is not ready
+                if (!mesh.visible || !mesh.geometry.boundsTree || mesh.userData.excludeFloatHit) continue;
+
+                // Check floating hit for different meshes
+                if (mesh instanceof THREE.InstancedMesh) {
+                    for (let i = 0; i < mesh.count; i++) {
+                        // Extract the instance matrix
+                        mesh.getMatrixAt(i, instancedHitMatrix.current);
+                        floatingCheck(mesh, instancedHitMatrix.current)
+                    }
+                } else {
+                    floatingCheck(mesh, mesh.matrixWorld)
                 }
-            } else {
-                floatingCheck(mesh, mesh.matrixWorld)
             }
         }
 
@@ -981,6 +996,8 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
                 const floatForce = springForce - dampingForce;
                 // Apply force to character's velocity (force * dt / mass)
                 if (!jump) currentLinVel.current.addScaledVector(upAxis.current, floatForce * delta / mass)
+            } else {
+                isOnGround.current = false
             }
         } else {
             isOnGround.current = false
@@ -1245,25 +1262,9 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
      * Update debug indicators function
      */
     const updateDebugger = useCallback(() => {
-        // Get bbox size and center
-        characterBbox.current.getSize(characterBboxSize.current);
-        characterBbox.current.getCenter(characterBboxCenter.current);
-
-        // Apply the updated values to the bbox mesh
-        debugBbox.current?.position.copy(characterBboxCenter.current);
-        debugBbox.current?.scale.set(characterBboxSize.current.x, characterBboxSize.current.y, characterBboxSize.current.z);
-
         // Apply the updated values to character segment start/end
         debugLineStart.current?.position.copy(characterSegment.current.start)
         debugLineEnd.current?.position.copy(characterSegment.current.end)
-
-        // Get floating ray sensor bbox size and center
-        floatSensorBbox.current.getSize(floatSensorBboxSize.current);
-        floatSensorBbox.current.getCenter(floatSensorBboxCenter.current);
-
-        // Apply the updated values to the floating ray sensor bbox mesh
-        debugRaySensorBbox.current?.position.copy(floatSensorBboxCenter.current);
-        debugRaySensorBbox.current?.scale.set(floatSensorBboxSize.current.x, floatSensorBboxSize.current.y, floatSensorBboxSize.current.z);
 
         //  Apply the updated values to floating sensor segment start/end
         debugRaySensorStart.current?.position.copy(floatSensorSegment.current.start)
@@ -1272,10 +1273,19 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         // Update stand point to follow globalClosestPoint
         standPointRef.current?.position.copy(globalClosestPoint.current);
 
-        // Update moving direction indicator to follow character pos and moving dir
-        moveDirRef.current?.position.copy(characterGroupRef.current.position).addScaledVector(upAxis.current, 0.7)
-        moveDirRef.current?.lookAt(moveDirRef.current?.position.clone().add(camProjDir.current))
-        // moveDirRef.current?.lookAt(moveDirRef.current?.position.clone().add(inputDir.current))
+        // Update camera looking direction indicator to follow character pos and looking dir
+        lookDirRef.current?.position.copy(characterGroupRef.current.position).addScaledVector(upAxis.current, 0.7)
+        lookDirRef.current?.lookAt(lookDirRef.current?.position.clone().add(camProjDir.current))
+
+        // Update input direction arrow
+        inputDirRef.current?.position.copy(characterSegment.current.end)
+        inputDirRef.current?.setDirection(inputDir.current)
+        inputDirRef.current?.setLength(inputDir.current.lengthSq())
+
+        // Update moving velocity arrow and length
+        moveDirRef.current?.position.copy(characterSegment.current.end)
+        moveDirRef.current?.setDirection(currentLinVel.current)
+        moveDirRef.current?.setLength(currentLinVel.current.length() / maxWalkSpeed)
     }, [])
 
     useFrame((state, delta) => {
@@ -1379,11 +1389,11 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     return (
         <Suspense fallback={null} >
             <group {...props} ref={characterGroupRef} dispose={null} >
-                {/* Character capsule collider */}
-                <mesh ref={characterColliderRef} visible={debug}>
+                {/* Character debug capsule collider */}
+                {debug && <mesh ref={characterColliderRef}>
                     <capsuleGeometry args={colliderCapsuleArgs} />
                     <meshNormalMaterial wireframe />
-                </mesh>
+                </mesh>}
                 {/* Character model */}
                 <group name="BVHEcctrl-Model" ref={characterModelRef}>
                     {children}
@@ -1395,11 +1405,9 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
                 <group>
                     <TransformControls object={characterGroupRef} />
                     {/* <TransformControls mode="rotate" object={characterGroupRef} scale={2} /> */}
+
                     {/* Character bunding box debugger */}
-                    <mesh ref={debugBbox}>
-                        <boxGeometry />
-                        <meshBasicMaterial color={"yellow"} wireframe />
-                    </mesh>
+                    <box3Helper args={[characterBbox.current]} />
                     {/* Character segment debugger */}
                     <mesh ref={debugLineStart}>
                         <octahedronGeometry args={[0.05, 0]} />
@@ -1409,11 +1417,9 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
                         <octahedronGeometry args={[0.05, 0]} />
                         <meshNormalMaterial />
                     </mesh>
+
                     {/* Float ray sensor bunding box debugger */}
-                    <mesh ref={debugRaySensorBbox}>
-                        <boxGeometry />
-                        <meshBasicMaterial color={"yellow"} wireframe />
-                    </mesh>
+                    <box3Helper args={[floatSensorBbox.current]} />
                     {/* Float ray sensor segment debugger */}
                     <mesh ref={debugRaySensorStart}>
                         <octahedronGeometry args={[0.1, 0]} />
@@ -1423,27 +1429,24 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
                         <octahedronGeometry args={[0.1, 0]} />
                         <meshBasicMaterial color={"yellow"} wireframe />
                     </mesh>
-                    {/* Collision contact point debugger */}
-                    <mesh ref={contactPointRef} scale={[1, 2, 1]}>
+
+                    {/* Camera looking direction debugger */}
+                    <mesh scale={[1, 0.5, 4]} ref={lookDirRef}>
                         <octahedronGeometry args={[0.1, 0]} />
                         <meshNormalMaterial />
                     </mesh>
+
+                    {/* Character input arrow debugger */}
+                    <arrowHelper ref={inputDirRef} args={[undefined, undefined, undefined, "#00f"]} />
+
+                    {/* Character moving velocity arrow debugger */}
+                    <arrowHelper ref={moveDirRef} args={[undefined, undefined, undefined, "#f00"]} />
+
                     {/* Character standing point debugger */}
                     <mesh ref={standPointRef} >
-                        <octahedronGeometry args={[0.1, 0]} />
-                        <meshBasicMaterial color={"red"} />
+                        <octahedronGeometry args={[0.12, 0]} />
+                        <meshBasicMaterial color={"red"} transparent opacity={0.2} />
                     </mesh>
-                    {/* Character input moving direction debugger */}
-                    <group ref={moveDirRef}>
-                        <mesh scale={[1, 1, 4]}>
-                            <octahedronGeometry args={[0.1, 0]} />
-                            <meshNormalMaterial />
-                        </mesh>
-                        <mesh scale={[4, 1, 1]}>
-                            <octahedronGeometry args={[0.1, 0]} />
-                            <meshNormalMaterial />
-                        </mesh>
-                    </group>
                 </group>
             }
         </Suspense>
