@@ -29,11 +29,15 @@
  */
 
 import * as THREE from "three";
-import React, { useEffect, useRef, useMemo, useState, type ReactNode, forwardRef, type ForwardedRef, type RefObject, type JSX, Suspense, useCallback, useImperativeHandle } from "react";
+import React, { useEffect, useRef, useMemo, type ReactNode, forwardRef, Suspense, useCallback, useImperativeHandle } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Helper, PivotControls, TransformControls, useKeyboardControls } from "@react-three/drei";
-import { useEcctrlStore } from "./stores/useEcctrlStore";
-import { clamp, lerp } from "three/src/math/MathUtils";
+import { TransformControls, useKeyboardControls } from "@react-three/drei";
+import { clamp } from "three/src/math/MathUtils";
+import type { MovementInput, CharacterAnimationStatus } from ".";
+import { useEcctrlStore } from ".";
+import { useJoystickStore } from ".";
+import { useAnimationStore } from ".";
+import { useButtonStore } from ".";
 
 // const getAzimuthalAngle = (camera: THREE.Camera, upAxis: THREE.Vector3): number => {
 //     const viewDir = new THREE.Vector3();
@@ -163,6 +167,15 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     // }
 
     /**
+     * Subscribe to joystick store changes
+     * Update joystick state when joystickX/Y changes
+     */
+    useEffect(() => {
+        const unsubscribeJoystick = useJoystickStore.subscribe(({ joystickX, joystickY }) => joystickState.current.set(joystickX, joystickY));
+        return unsubscribeJoystick;
+    }, []);
+
+    /**
      * Physics preset
      */
     // const upAxis = useMemo(() => new THREE.Vector3(0, 1, 0), [])
@@ -212,6 +225,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const jumpState = useRef<boolean>(false)
     const isOnGround = useRef<boolean>(false)
     const prevIsOnGround = useRef<boolean>(false)
+    const prevAnimation = useRef<CharacterAnimationStatus>("IDLE");
     const characterModelTargetQuat = useRef<THREE.Quaternion>(new THREE.Quaternion())
     const characterModelLookMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4())
     const characterOrigin = useMemo(() => new THREE.Vector3(0, 0, 0), [])
@@ -289,7 +303,6 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const floatNormalMatrix = useRef<THREE.Matrix3>(new THREE.Matrix3())
     const floatRaycaster = useRef<THREE.Raycaster>(new THREE.Raycaster())
     floatRaycaster.current.far = capsuleRadius + floatHeight + floatPullBackHeight
-    const floatRaycastCandidates = useRef<THREE.Mesh[]>([])
     const relativeHitPoint = useRef<THREE.Vector3>(new THREE.Vector3())
     const rotationDeltaPos = useRef<THREE.Vector3>(new THREE.Vector3())
     const yawQuaternion = useRef<THREE.Quaternion>(new THREE.Quaternion())
@@ -301,6 +314,14 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     const floatTempScale = useRef<THREE.Vector3>(new THREE.Vector3())
     const scaledFloatRadiusVec = useRef<THREE.Vector3>(new THREE.Vector3())
     const deltaHit = useRef<THREE.Vector3>(new THREE.Vector3())
+
+    /**
+     * Global store values
+     * Getting all collider array from store
+     */
+    const colliderMeshesArray = useEcctrlStore.getState().colliderMeshesArray;
+    // Fitler meshes array for raycasting collision
+    const floatRaycastCandidates = useMemo(() => colliderMeshesArray.filter((mesh) => mesh.geometry.boundsTree && !(mesh instanceof THREE.InstancedMesh)), [colliderMeshesArray]);
 
     /**
      * Gravity funtion
@@ -936,29 +957,21 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
          */
         // Update float raycaster position and direction
         floatRaycaster.current.set(floatSensorSegment.current.start, gravityDir.current)
-        floatRaycastCandidates.current.length = 0
-        for (let i = 0; i < colliderMeshesArray.length; i++) {
-            const mesh = colliderMeshesArray[i];
-            if (
-                mesh.visible &&
-                mesh.geometry.boundsTree &&
-                !mesh.userData.excludeFloatHit &&
-                !(mesh instanceof THREE.InstancedMesh)
-            ) {
-                floatRaycastCandidates.current.push(mesh);
-            }
-        }
-        const intersects = floatRaycaster.current.intersectObjects(floatRaycastCandidates.current, false);
+        const intersects = floatRaycaster.current.intersectObjects(floatRaycastCandidates, false);
 
         // First: check if ray hits any collider mesh (fast and stable)
         if (intersects.length > 0) {
-            globalMinDistance.current = intersects[0].distance;
-            globalClosestPoint.current.copy(intersects[0].point);
-            floatHitNormal.current.copy(intersects[0].normal!);
-            currSlopeAngle.current = floatHitNormal.current.angleTo(upAxis.current);
-            isOverMaxSlope.current = currSlopeAngle.current > maxSlope;
-            groundFriction.current = intersects[0].object.userData.friction;
-            floatHitMesh.current = intersects[0].object;
+            const validHit = intersects.find(hit => hit.object.visible && !hit.object.userData.excludeFloatHit);
+            if (validHit) {
+                globalMinDistance.current = validHit.distance;
+                globalClosestPoint.current.copy(validHit.point);
+                floatNormalMatrix.current.getNormalMatrix(validHit.object.matrixWorld)
+                floatHitNormal.current.copy(validHit.normal!).applyMatrix3(floatNormalMatrix.current).normalize();
+                currSlopeAngle.current = floatHitNormal.current.angleTo(upAxis.current);
+                isOverMaxSlope.current = currSlopeAngle.current > maxSlope;
+                groundFriction.current = validHit.object.userData.friction;
+                floatHitMesh.current = validHit.object;
+            }
         }
         // Second: fallback to shapecast if no ray hit (slow but accurate)
         else {
@@ -982,28 +995,35 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         // If globalMinDistance.current is valid, sensor hits something. 
         // Apply proper floating force to float character
         if (globalMinDistance.current < Infinity) {
-            // Check character is on ground and if not over max slope
+            // Check if detect ground below and if not over max slope
             if (!isOverMaxSlope.current) {
-                isOnGround.current = true
-                isFalling.current = false
-                // Calculate spring force
-                floatHitVec.current.subVectors(floatSensorSegment.current.start, globalClosestPoint.current)
-                const springDist = floatHeight + capsuleRadius - floatHitVec.current.dot(upAxis.current)
-                const springForce = floatSpringK * springDist;
-                // Calculate damping force
-                const dampingForce = floatDampingC * currentLinVel.current.dot(upAxis.current);
-                // Total float force
-                const floatForce = springForce - dampingForce;
-                // Apply force to character's velocity (force * dt / mass)
-                if (!jump) currentLinVel.current.addScaledVector(upAxis.current, floatForce * delta / mass)
+                if (globalMinDistance.current < floatHeight + capsuleRadius) {
+                    isOnGround.current = true
+                    isFalling.current = false
+                    jump = false // Reset jump state if character is on ground
+                }
+                // If not jumping, calculate floating force
+                if (!jump) {
+                    // Calculate spring force
+                    floatHitVec.current.subVectors(floatSensorSegment.current.start, globalClosestPoint.current);
+                    const springDist = floatHeight + capsuleRadius - floatHitVec.current.dot(upAxis.current);
+                    const springForce = floatSpringK * springDist;
+                    // Calculate damping force
+                    const dampingForce = floatDampingC * currentLinVel.current.dot(upAxis.current);
+                    const floatForce = springForce - dampingForce;
+                    // Apply force to character's velocity if on ground (force * dt / mass)
+                    if (isOnGround.current) currentLinVel.current.addScaledVector(upAxis.current, floatForce * delta / mass);
+                } else {
+                    isOnGround.current = false;
+                }
             } else {
-                isOnGround.current = false
+                isOnGround.current = false;
             }
         } else {
-            isOnGround.current = false
-            currSlopeAngle.current = 0
+            isOnGround.current = false;
+            currSlopeAngle.current = 0;
         }
-    }, [floatingCheck, capsuleRadius, floatHeight, floatSpringK, floatDampingC, mass])
+    }, [floatingCheck, capsuleRadius, floatHeight, floatSpringK, floatDampingC, mass, floatRaycastCandidates])
     /**
      * Back-up handleCollisionResponse
      */
@@ -1219,7 +1239,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         }
     }, [])
     const updateCharacterStatus = useCallback((run: boolean, jump: boolean) => {
-        // Control status
+        // Update character control status
         characterModelRef.current?.getWorldPosition(characterStatus.position)
         characterModelRef.current?.getWorldQuaternion(characterStatus.quaternion)
         characterStatus.linvel.copy(currentLinVel.current)
@@ -1227,9 +1247,12 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         characterStatus.movingDir.copy(movingDir.current)
         characterStatus.isOnGround = isOnGround.current
         characterStatus.isOnMovingPlatform = isOnMovingPlatform.current
-        // Animation status
+        // Update character animation status
         characterStatus.animationStatus = updateCharacterAnimation(run, jump)
-        prevIsOnGround.current = isOnGround.current
+        if (prevAnimation.current !== characterStatus.animationStatus) {
+            useAnimationStore.getState().setAnimationStatus(characterStatus.animationStatus)
+            prevAnimation.current = characterStatus.animationStatus
+        }
     }, [])
 
     /**
@@ -1242,7 +1265,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         if (movement.backward !== undefined) backwardState.current = movement.backward;
         if (movement.leftward !== undefined) leftwardState.current = movement.leftward;
         if (movement.rightward !== undefined) rightwardState.current = movement.rightward;
-        if (movement.joystick) joystickState.current.copy(movement.joystick);
+        if (movement.joystick) joystickState.current.set(movement.joystick.x, movement.joystick.y);
         if (movement.run !== undefined) runState.current = movement.run;
         if (movement.jump !== undefined) jumpState.current = movement.jump;
     }, [])
@@ -1254,7 +1277,6 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
             resetLinVel,
             setLinVel,
             setMovement,
-
         };
     }, [resetLinVel, setLinVel, setMovement]);
 
@@ -1290,12 +1312,6 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
 
     useFrame((state, delta) => {
         /**
-         * Global store values
-         * Getting all collider array from store
-         */
-        const colliderMeshesArray = useEcctrlStore.getState().colliderMeshesArray;
-
-        /**
          * If paused or delay, skip all the functions
          */
         if (paused || state.clock.elapsedTime < delay) return
@@ -1312,6 +1328,11 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         // const camAngle = getAzimuthalAngle(state.camera, upAxis);
 
         /**
+         * Getting virtual buttons info from useButtonStore
+         */
+        const { buttons } = useButtonStore.getState();
+
+        /**
          * Getting all the useful keys from useKeyboardControls
          */
         // const { forward, backward, leftward, rightward, jump, run } = isInsideKeyboardControls && getKeys ? getKeys() : presetKeys;
@@ -1320,8 +1341,8 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
         const backward = backwardState.current || keys.backward;
         const leftward = leftwardState.current || keys.leftward;
         const rightward = rightwardState.current || keys.rightward;
-        const run = runState.current || keys.run;
-        const jump = jumpState.current || keys.jump;
+        const run = runState.current || keys.run || buttons.run;
+        const jump = jumpState.current || keys.jump || buttons.jump;
 
         /**
          * Handle character movement input
@@ -1378,6 +1399,11 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
              * Update character status for exporting
              */
             updateCharacterStatus(run, jump)
+
+            /**
+             * Save previous grounded state
+             */
+            prevIsOnGround.current = isOnGround.current
         }
 
         /**
@@ -1458,14 +1484,16 @@ export default React.memo(BVHEcctrl);
 /**
  * Export values/features/functions
  */
-export { default as StaticCollider } from "./StaticCollider"
-export type { StaticColliderProps } from './StaticCollider'
-export { default as KinematicCollider } from "./KinematicCollider"
-export type { KinematicColliderProps } from "./KinematicCollider"
-export { default as InstancedStaticCollider } from "./InstancedStaticCollider"
-export { useEcctrlStore } from "./stores/useEcctrlStore"
-export type { StoreState } from "./stores/useEcctrlStore"
-
+// export { default as StaticCollider } from "./StaticCollider"
+// export type { StaticColliderProps } from './StaticCollider'
+// export { default as KinematicCollider } from "./KinematicCollider"
+// export type { KinematicColliderProps } from "./KinematicCollider"
+// export { default as InstancedStaticCollider } from "./InstancedStaticCollider"
+// export { useEcctrlStore } from "./stores/useEcctrlStore"
+// export type { StoreState } from "./stores/useEcctrlStore"
+// export { default as Joystick } from "./Joystick"
+// export { useJoystickStore } from "./stores/useJoystickStore"
+// export type { JoystickStoreState } from "./stores/useJoystickStore"
 export const characterStatus: CharacterStatus = {
     position: new THREE.Vector3(),
     linvel: new THREE.Vector3(),
@@ -1513,7 +1541,7 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     collisionPushBackThreshold?: number;
 };
 
-export type MovementInput = { forward?: boolean; backward?: boolean; leftward?: boolean; rightward?: boolean; joystick?: THREE.Vector2; run?: boolean; jump?: boolean };
+// export type MovementInput = { forward?: boolean; backward?: boolean; leftward?: boolean; rightward?: boolean; joystick?: THREE.Vector2; run?: boolean; jump?: boolean };
 export interface BVHEcctrlApi {
     group: THREE.Group;
     resetLinVel: () => void;
@@ -1521,7 +1549,7 @@ export interface BVHEcctrlApi {
     setMovement: (input: MovementInput) => void;
 }
 
-export type CharacterAnimationStatus = "IDLE" | "WALK" | "RUN" | "JUMP_START" | "JUMP_IDLE" | "JUMP_FALL" | "JUMP_LAND"
+// export type CharacterAnimationStatus = "IDLE" | "WALK" | "RUN" | "JUMP_START" | "JUMP_IDLE" | "JUMP_FALL" | "JUMP_LAND"
 export interface CharacterStatus {
     position: THREE.Vector3
     linvel: THREE.Vector3

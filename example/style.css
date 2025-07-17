@@ -24,10 +24,10 @@ body,
 
 .controlKeys {
   position: absolute;
-  width: 20rem;
+  width: 12rem;
   left: 50%;
-  margin-left: -10rem;
-  bottom: 13%;
+  margin-left: -6rem;
+  bottom: 9%;
   user-select: none;
   -moz-user-select: none;
   -webkit-user-drag: none;
@@ -37,6 +37,7 @@ body,
 
 .title {
   font-size: 0.8rem;
+  font-family: Arial, sans-serif;
   color: darkgray;
   position: absolute;
   width: 100%;

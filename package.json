@@ -20,13 +20,13 @@
     "dist/*"
   ],
   "type": "module",
-  "types": "./dist/BVHEcctrl.d.ts",
-  "main": "./dist/BVHEcctrl.cjs",
-  "module": "./dist/BVHEcctrl.js",
+  "types": "./dist/bvhecctrl.d.ts",
+  "main": "./dist/bvhecctrl.cjs",
+  "module": "./dist/bvhecctrl.js",
   "exports": {
-    "types": "./dist/BVHEcctrl.d.ts",
-    "require": "./dist/BVHEcctrl.cjs",
-    "import": "./dist/BVHEcctrl.js"
+    "types": "./dist/bvhecctrl.d.ts",
+    "require": "./dist/bvhecctrl.cjs",
+    "import": "./dist/bvhecctrl.js"
   },
   "sideEffects": false,
   "dependencies": {

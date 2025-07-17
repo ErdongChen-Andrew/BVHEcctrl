@@ -139,12 +139,12 @@ useFrame(() => {
 | `floatHeight`                | `number`                           | `0.2`              | Desired float height above ground.                            |
 | `floatPullBackHeight`        | `number`                           | `0.25`             | Additional distance below ground used to pull character down. |
 | `floatSensorRadius`          | `number`                           | `0.12`             | Radius of the sensor used to sense the ground.                |
-| `floatSpringK`               | `number`                           | `1600`             | Spring constant for floating.                                 |
-| `floatDampingC`              | `number`                           | `60`               | Damping factor for float spring (prevents oscillation).       |
+| `floatSpringK`               | `number`                           | `600`              | Spring constant for floating.                                 |
+| `floatDampingC`              | `number`                           | `28`               | Damping factor for float spring (prevents oscillation).       |
 | `collisionCheckIteration`    | `number`                           | `3`                | Number of collision check per frame.                          |
 | `collisionPushBackVelocity`  | `number`                           | `3`                | Extra velocity applied to resolve penetration.                |
 | `collisionPushBackDamping`   | `number`                           | `0.1`              | Damping applied to the pushback force.                        |
-| `collisionPushBackThreshold` | `number`                           | `0.001`            | Minimum depth before pushback activates.                      |
+| `collisionPushBackThreshold` | `number`                           | `0.005`            | Minimum depth before pushback activates.                      |
 
 ## 🧱 Collider Component Props
 
@@ -191,7 +191,7 @@ ecctrlRef.current.setMovement({
   backward: boolean,
   leftward: boolean,
   rightward: boolean,
-  joystick: THREE.Vector2,
+  joystick: { x: number; y: number },
   run: boolean,
   jump: boolean,
 });
