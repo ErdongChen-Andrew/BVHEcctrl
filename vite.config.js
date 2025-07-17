@@ -26,7 +26,7 @@ const build = defineConfig({
     lib: {
       formats: ["cjs", "es"],
       entry: "src/index.ts",
-      fileName: "bvhecctrl",
+      fileName: "[name]",
     },
     rollupOptions: {
       external: (id) => !id.startsWith(".") && !path.isAbsolute(id),
