@@ -37,8 +37,9 @@ const defaultButtonCapStyle: React.CSSProperties = {
     transform: "translate(-50%, -50%)",
     transition: "transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1)",
     willChange: "transform",
-    alignContent: "center",
-    textAlign: "center",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
     fontSize: '12px',
     fontWeight: 'bold',
     fontFamily: 'Arial, sans-serif',
@@ -97,8 +98,8 @@ const VirtualButton = (props: VirtualButtonProps) => {
             style={buttonWrapperStyle}
             onContextMenu={(e) => e.preventDefault()}
             onPointerDown={(e) => pressFunction(e)}
-            onPointerUp={() => resetFunction()}
-            onPointerLeave={() => resetFunction()}
+            onPointerUp={resetFunction}
+            onPointerLeave={resetFunction}
         >
             <div id="virtual-button-cap" style={buttonCapStyle} ref={capRef} >
                 {props.label}

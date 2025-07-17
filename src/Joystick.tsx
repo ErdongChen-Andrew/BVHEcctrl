@@ -136,8 +136,8 @@ const Joystick = (props: JoystickProps) => {
                 setActive(true)
             }}
             onPointerMove={(e) => active && moveFunction(e.clientX, e.clientY)}
-            onPointerUp={() => resetFunction()}
-            onPointerLeave={() => resetFunction()}
+            onPointerUp={resetFunction}
+            onPointerLeave={resetFunction}
         >
             <div id="joystick-base" style={joystickBaseStyle} ref={baseRef} >
                 <div id="joystick-knob" style={joystickKnobStyle} ref={knobRef} />

@@ -5,8 +5,10 @@
  * Released under the MIT License.
  */
 
+import BVHEcctrl from "./BVHEcctrl";
+export default BVHEcctrl;
+
 export { characterStatus } from "./BVHEcctrl";
-export { default as BVHEcctrl } from "./BVHEcctrl";
 export type { BVHEcctrlApi } from "./BVHEcctrl";
 export type { EcctrlProps } from "./BVHEcctrl";
 export type { CharacterStatus } from "./BVHEcctrl";

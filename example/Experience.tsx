@@ -5,7 +5,7 @@ import { useControls, folder, button } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useRef, useState } from "react";
 import Map from "./Map";
-import { BVHEcctrl, characterStatus, StaticCollider, KinematicCollider, InstancedStaticCollider, useEcctrlStore, useJoystickStore, type BVHEcctrlApi } from "../src/index"
+import BVHEcctrl, { characterStatus, StaticCollider, KinematicCollider, InstancedStaticCollider, useEcctrlStore, useJoystickStore, type BVHEcctrlApi } from "../src/index"
 import { useFrame, useThree } from "@react-three/fiber";
 import StaticMap from "./StaticMap";
 import InstancedMap from "./InstancedMap";
@@ -124,7 +124,7 @@ export default function Experience() {
     }
   }, [])
 
-  useFrame((state) => {    
+  useFrame((state) => {
     // For camera control to follow character
     if (camControlRef.current && ecctrlRef.current) {
       if (ecctrlRef.current.group)
