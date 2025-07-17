@@ -29,7 +29,7 @@
  */
 
 import * as THREE from "three";
-import React, { useEffect, useRef, useMemo, type ReactNode, forwardRef, Suspense, useCallback, useImperativeHandle } from "react";
+import React, { useEffect, useRef, useMemo, type ReactNode, forwardRef, Suspense, useCallback, useImperativeHandle, type ForwardRefExoticComponent, type RefAttributes } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { TransformControls, useKeyboardControls } from "@react-three/drei";
 import { clamp } from "three/src/math/MathUtils";
@@ -1479,7 +1479,7 @@ const BVHEcctrl = forwardRef<BVHEcctrlApi, EcctrlProps>(({
     );
 })
 
-export default React.memo(BVHEcctrl);
+export default React.memo(BVHEcctrl) as ForwardRefExoticComponent<EcctrlProps & RefAttributes<BVHEcctrlApi>>;
 
 /**
  * Export values/features/functions
@@ -1541,7 +1541,6 @@ export interface EcctrlProps extends Omit<React.ComponentProps<'group'>, 'ref'> 
     collisionPushBackThreshold?: number;
 };
 
-// export type MovementInput = { forward?: boolean; backward?: boolean; leftward?: boolean; rightward?: boolean; joystick?: THREE.Vector2; run?: boolean; jump?: boolean };
 export interface BVHEcctrlApi {
     group: THREE.Group;
     resetLinVel: () => void;
@@ -1549,7 +1548,6 @@ export interface BVHEcctrlApi {
     setMovement: (input: MovementInput) => void;
 }
 
-// export type CharacterAnimationStatus = "IDLE" | "WALK" | "RUN" | "JUMP_START" | "JUMP_IDLE" | "JUMP_FALL" | "JUMP_LAND"
 export interface CharacterStatus {
     position: THREE.Vector3
     linvel: THREE.Vector3
